@@ -1,0 +1,80 @@
+ClassGen 
+MVP Product Spec — V1 
+Confidential — Working Draft 
+Page 1 
+ClassGen 
+AI Lesson Activity Generator for Teachers 
+MVP Product Spec  ·  Version 1.0  ·  March 2026 
+Stage:  Pre-Build / Spec 
+Channel:  WhatsApp (Phase 
+1) 
+Target User:  Secondary 
+Teachers & Tutors 
+MVP Promise:  Lesson pack 
+in < 1 min 
+THE PROBLEM 
+Teachers want to make lessons more engaging, but they lack the time and creative support to constantly design interactive 
+activities. Most fall back on lecturing — not because they want to, but because preparation takes 30–60 minutes they don't 
+have. 
+THE SOLUTION 
+ClassGen is a lightweight AI tool that converts a lesson topic into a ready-to-use classroom activity pack in under one minute. 
+A teacher enters basic class details and receives a structured lesson agenda they can use that same day — no design work, 
+no blank-page anxiety. 
+V1 INPUT → OUTPUT 
+TEACHER ENTERS (Input) 
+CLASSGEN RETURNS (Output) 
+• Country (e.g. Nigeria) 
+• Class level (e.g. SS3 / Form 4) 
+• Subject (e.g. Mathematics) 
+• Topic / Chapter (e.g. Calculus) 
+• Duration (e.g. 40 minutes) 
+Plan A  —  structured & teacher-led 
+Plan B  —  group-based & participatory 
+ 
+Each plan includes: 
+  1. Concept explanation (plain language) 
+  2. Real-world relevance / hook 
+  3. Lesson opener / icebreaker 
+  4. Main activity or group challenge 
+  5. Homework (scenario-based) 
+  6. Teacher notes & expected answers 
+ 
+The teacher reviews both plans and uses whichever fits their class. No login required for the initial prototype. 
+OUT OF SCOPE FOR V1 
+NOT IN V1 
+PLANNED FOR LATER 
+✗  Student-facing experience 
+✗  Gamification / leaderboards 
+✗  Theme selector or custom themes 
+✗  Saved lesson history 
+✗  School admin panel / LMS 
+✗  Grading or analytics dashboard 
+→  Theme selection (V2) 
+→  Custom teacher themes (V3) 
+→  Gamification layer 
+→  Curriculum mapping by country 
+→  Lesson history & favourites 
+→  Multi-subject school packages 
+HOW WE VALIDATE 
+• 
+① Generate 3 sample lesson packs manually (Maths, English, Science). 
+• 
+② Show them to 5 secondary school teachers — ask: "Would you use this tomorrow morning?" 
+• 
+③ Build narrowest WhatsApp prototype; measure: repeat use within 7 days. 
+Success signal: at least 3 of 5 teachers say they'd use Plan A or Plan B without editing. 
+WHY NOT JUST CHATGPT? 
+• 
+Structured, teacher-ready format — not a raw AI chat response 
+• 
+Two curated delivery options per lesson — instant choice, zero effort 
+• 
+Age-appropriate, curriculum-aware tone and activity design 
+
+ClassGen 
+MVP Product Spec — V1 
+Confidential — Working Draft 
+Page 2 
+• 
+Lives in WhatsApp — where teachers already spend their mornings 
+

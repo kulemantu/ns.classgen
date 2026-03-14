@@ -1,0 +1,155 @@
+ClassGen 
+MVP Tech Stack 
+Confidential — Working Draft 
+Page 1 
+ClassGen — MVP Tech Stack 
+What we're building with, and why each choice was made 
+March 2026  ·  V1 Prototype 
+GUIDING PRINCIPLE 
+Every tool in this stack was chosen to answer one question: what is the fastest path to a working prototype a real teacher can 
+use? We are optimising for speed of validation, not scale. Nothing here is permanent — it is all replaceable once we know 
+what is worth keeping. 
+ 
+SYSTEM OVERVIEW 
+ 
+Teacher 
+WhatsApp 
+→ 
+Twilio 
+Webhook 
+→ 
+FastAPI 
+Backend 
+→ 
+Claude API 
+AI Engine 
+ 
+ 
+ 
+↓ 
+ 
+ 
+ 
+ 
+ 
+ 
+Supabase 
+Logging / DB 
+ 
+ 
+ 
+ 
+Teacher sends a WhatsApp message  →  Twilio forwards it to our backend  →  FastAPI calls the Claude API  →  structured lesson 
+pack is returned to the teacher. Every session is logged to Supabase. 
+THE STACK 
+ 
+01 
+Twilio WhatsApp 
+API 
+Interface Layer 
+Why we use it:  Teachers already live in WhatsApp — no app download, no sign-up friction, no 
+onboarding drop-off. Twilio gives us a programmable WhatsApp number with a webhook in under 
+an hour. It abstracts away all of Meta's API complexity. 
+Trade-offs:  Twilio adds a small per-message cost on top of Meta's fees. You are also dependent 
+on a third party between you and WhatsApp. If volume grows large, integrating Meta's Cloud API 
+directly becomes cheaper. 
+Revisit when:  You have more than a few hundred active teachers per month, or Twilio costs start 
+to feel meaningful. 
+Cost:  Free sandbox for testing. ~$0.005 per message when live. Negligible at MVP scale. 
+ 
+02 
+Claude API 
+AI Engine 
+Why we use it:  The core job is generating structured, consistent output every time — same 
+sections, right tone, age-appropriate language. Claude follows formatting instructions reliably, 
+which matters here because we are not building a chat interface, we are building a document 
+generator. Prompt once, get Plan A and Plan B back in a predictable format. 
+Trade-offs:  You are tied to Anthropic's pricing and uptime. If the prompt is poorly written, output 
+quality degrades and every teacher gets the same bad result. Prompt engineering is therefore the 
+single most important technical task in V1. 
+Revisit when:  You need fine-tuned curriculum alignment, offline support, or the API cost becomes 
+a real business concern at scale. 
+Cost:  Pay-as-you-go. A single lesson pack generation costs fractions of a cent. Expect under $10/month for hundreds of teachers. 
+ 
+03 
+FastAPI (Python) 
+Backend 
+Why we use it:  FastAPI is the right tool for a thin, fast backend that does one job: receive a 
+WhatsApp webhook, parse the teacher's input, call the Claude API, and send a response back. It is 
+fast to write, has automatic API docs, handles async cleanly, and the Python ecosystem makes 
+prompt engineering and iteration easy. You could write this whole backend in an afternoon. 
+Trade-offs:  Python is not the fastest runtime. For a webhook handler that makes one API call, this 
+does not matter at all. It would only matter at very high concurrency, which is not a V1 problem. 
+Revisit when:  You need to handle thousands of simultaneous requests, or you want to 
+consolidate the stack into a single language like TypeScript end-to-end. 
+
+ClassGen 
+MVP Tech Stack 
+Confidential — Working Draft 
+Page 2 
+Cost:  Free. Open source. Runs anywhere. 
+ 
+04 
+Railway 
+Hosting / Deployment 
+Why we use it:  Railway lets you deploy a FastAPI app from a GitHub repo in about five minutes 
+with zero DevOps configuration. No YAML files, no Kubernetes, no AWS IAM roles. You push 
+code, it deploys. That matters when the goal is to get something in front of teachers as fast as 
+possible, not to build infrastructure. 
+Trade-offs:  Railway is not AWS. It has less configurability and a smaller ecosystem of 
+integrations. That is fine for an MVP, but a production system serving thousands of schools would 
+likely migrate to something more robust. 
+Revisit when:  You need custom infrastructure, advanced scaling, or your team has DevOps 
+capacity and a reason to invest in it. 
+Cost:  Free tier available. Paid plans start at $5/month. More than enough for MVP. 
+ 
+05 
+Supabase 
+Database / Logging 
+Why we use it:  We need to log every teacher session — what they asked for, what we returned, 
+whether they asked again. This data is the most valuable thing we will produce in V1. It tells us 
+which subjects are popular, which outputs teachers use versus ignore, and what the product should 
+become next. Supabase gives us a hosted Postgres database with a clean dashboard and zero 
+setup. We do not need a complex ORM or schema — just a simple sessions table. 
+Trade-offs:  Supabase is a managed service, so you are trusting them with your data. For an MVP 
+this is fine. If data privacy becomes a concern — for example, if schools require on-premise 
+storage — this would need revisiting. 
+Revisit when:  You have data privacy requirements from a school or institution, or you need more 
+advanced analytics than a simple Postgres table provides. 
+Cost:  Free tier covers 500MB database and 2GB file storage. More than enough for V1. 
+ 
+06 
+Paystack 
+Payments (Phase 2) 
+Why we use it:  When we are ready to charge, Paystack handles Nigerian debit cards, bank 
+transfers, and USSD payments out of the box. Stripe does not support Nigerian cards well. 
+Paystack is the default choice for any Nigeria-first product and integrates cleanly with a Python 
+backend. 
+Trade-offs:  Paystack is Nigeria and Africa-focused. If the product expands to other regions, 
+additional payment providers would be needed alongside it. 
+Revisit when:  You are ready to charge teachers, which should only happen after the free 
+prototype has been validated. 
+Cost:  Free to integrate. 1.5% + ₦100 per transaction for Nigerian cards. No monthly fee. 
+ 
+WHAT WE ARE NOT USING AND WHY 
+ 
+Tool 
+Why not now 
+AWS / GCP / Azure 
+Too much setup for a prototype. Railway does the job in a fraction of the time. 
+Full LMS (Moodle etc.) 
+We are not building a learning management system. We are building a lesson generator. 
+React / Next.js frontend 
+No web interface needed in V1. WhatsApp is the UI. 
+Stripe 
+Poor support for Nigerian cards. Paystack is the right tool for this market. 
+Docker / Kubernetes 
+Operational overhead with no benefit at this scale. Railway handles containers for us. 
+OpenAI / GPT 
+Claude handles structured formatting more reliably for our specific output requirement. 
+ 
+THE BOTTOM LINE 
+This stack costs close to nothing to run, takes a weekend to set up, and puts a working prototype in front of real teachers fast. 
+That is the only thing that matters at this stage. When teachers prove they will use it, we revisit the stack with real data. Until 
+then, every tool here earns its place by staying out of the way. 
+

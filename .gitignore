@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment
+.env
+
+# OS
+.DS_Store
+
+# Testing
+.pytest_cache/
+
+# Generated PDFs
+static/*.pdf
