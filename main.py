@@ -1,10 +1,15 @@
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import Response, HTMLResponse, FileResponse
+from fastapi.responses import Response, HTMLResponse, FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from twilio.twiml.messaging_response import MessagingResponse
-from utils import call_openrouter, log_session, get_session_history
+from utils import (
+    call_openrouter, log_session, get_session_history,
+    generate_homework_code, save_homework_code, get_homework_code,
+    save_quiz_submission, get_quiz_results,
+)
 from pdf_generator import generate_pdf_from_markdown
+import json
 import os
 import time
 import re
@@ -47,6 +52,12 @@ IMPORTANT CONTENT RULES:
 - The homework MUST be completable in a student's exercise book with only a pen. Students may not have access to technology at home.
 - Be specific. "Discuss in groups" is not an activity. "Groups of 4, each group gets a different scenario, 8 minutes to prepare, 1 minute to present" is an activity.
 - Be age-appropriate and curriculum-aware for the class level given.
+- Detect the exam board from the class level:
+  - SS1-SS3 (Senior Secondary): WAEC and NECO syllabus. Reference past WAEC/NECO question styles in Teacher Notes.
+  - JSS1-JSS3 (Junior Secondary): Basic Education Certificate Examination (BECE).
+  - If the teacher specifies "Cambridge", "IGCSE", or "AS/A-Level", follow the Cambridge International syllabus.
+  - If the teacher specifies a specific exam board, use that instead.
+  - Always mention the relevant exam board in the TEACHER_NOTES block under EXAM TIP.
 
 [BLOCK_START_OPENER]
 Title: [A catchy hook -- not "Introduction to X"]
@@ -130,8 +141,54 @@ def _clean_block_markers_for_pdf(text: str) -> str:
     return text.strip()
 
 
-async def _generate_lesson(user_message: str, thread_id: str, limit: int = 3) -> tuple[str, str | None]:
-    """Shared logic: log input, call LLM, generate PDF, log output. Returns (reply, pdf_url)."""
+def _extract_homework_block(text: str) -> str:
+    """Extract the HOMEWORK block content from a lesson response."""
+    match = re.search(r'\[BLOCK_START_HOMEWORK\](.*?)\[BLOCK_END\]', text, re.DOTALL)
+    return match.group(1).strip() if match else ""
+
+
+QUIZ_GENERATION_PROMPT = """You are a quiz generator. Given lesson content, generate exactly 5 multiple-choice questions.
+
+Return ONLY valid JSON — no markdown, no code fences, no explanation. The response must be a JSON array:
+[
+  {
+    "question": "The question text",
+    "options": ["A) option1", "B) option2", "C) option3", "D) option4"],
+    "correct": 0
+  }
+]
+
+"correct" is the zero-based index of the correct option (0=A, 1=B, 2=C, 3=D).
+
+Rules:
+- Questions should test understanding, not just recall
+- All 4 options should be plausible
+- Questions should be appropriate for the class level
+- Keep language simple and clear"""
+
+
+async def _generate_quiz_questions(lesson_content: str) -> list:
+    """Generate 5 MCQ questions from lesson content via a second LLM call."""
+    try:
+        raw = await call_openrouter(QUIZ_GENERATION_PROMPT, lesson_content)
+        if not raw:
+            return []
+        # Strip markdown code fences if present
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = re.sub(r'^```\w*\n?', '', raw)
+            raw = re.sub(r'\n?```$', '', raw)
+        questions = json.loads(raw)
+        if isinstance(questions, list) and len(questions) > 0:
+            return questions[:5]
+    except (json.JSONDecodeError, Exception) as e:
+        print(f"Error generating quiz: {e}")
+    return []
+
+
+async def _generate_lesson(user_message: str, thread_id: str, limit: int = 3) -> tuple[str, str | None, str | None]:
+    """Shared logic: log input, call LLM, generate PDF + homework code, log output.
+    Returns (reply, pdf_url, homework_code)."""
     log_session(thread_id, "user", user_message)
 
     history = get_session_history(thread_id, limit=limit)
@@ -144,12 +201,13 @@ async def _generate_lesson(user_message: str, thread_id: str, limit: int = 3) ->
     assistant_reply = await call_openrouter(CLASSGEN_SYSTEM_PROMPT, prompt)
 
     if not assistant_reply:
-        return "I'm sorry, my AI engine is currently resting. Please try again soon.", None
+        return "I'm sorry, my AI engine is currently resting. Please try again soon.", None, None
 
     log_session(thread_id, "assistant", assistant_reply)
 
-    # Only generate PDF for actual lesson packs, not clarifying questions
+    # Only generate PDF + homework code for actual lesson packs, not clarifying questions
     pdf_url = None
+    homework_code = None
     if _has_lesson_blocks(assistant_reply):
         try:
             pdf_text = _clean_block_markers_for_pdf(assistant_reply)
@@ -158,7 +216,17 @@ async def _generate_lesson(user_message: str, thread_id: str, limit: int = 3) ->
         except Exception as e:
             print(f"Error generating PDF: {e}")
 
-    return assistant_reply, pdf_url
+        # Generate homework code + quiz questions
+        try:
+            homework_code = generate_homework_code()
+            homework_block = _extract_homework_block(assistant_reply)
+            quiz_questions = await _generate_quiz_questions(assistant_reply)
+            save_homework_code(homework_code, thread_id, assistant_reply, quiz_questions, homework_block)
+        except Exception as e:
+            print(f"Error generating homework code: {e}")
+            homework_code = None
+
+    return assistant_reply, pdf_url, homework_code
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -194,9 +262,13 @@ async def twilio_webhook(request: Request):
         twiml_response.message("Welcome to ClassGen! Send a topic or voice note to get started.")
         return Response(content=str(twiml_response), media_type="application/xml")
 
-    ai_response_text, pdf_url = await _generate_lesson(user_input, thread_id)
+    ai_response_text, pdf_url, homework_code = await _generate_lesson(user_input, thread_id)
 
-    msg = twiml_response.message(ai_response_text)
+    reply_text = ai_response_text
+    if homework_code:
+        reply_text += f"\n\nHomework Code: {homework_code}\nStudents visit: /h/{homework_code}"
+
+    msg = twiml_response.message(reply_text)
 
     # Attach PDF as media if available
     if from_number and pdf_url:
@@ -214,12 +286,81 @@ class ChatRequest(BaseModel):
 @app.post("/api/chat")
 async def local_chat_endpoint(request: ChatRequest):
     """Local JSON endpoint for the web UI. Bypasses Twilio."""
-    assistant_reply, pdf_url = await _generate_lesson(request.message, request.thread_id)
+    assistant_reply, pdf_url, homework_code = await _generate_lesson(request.message, request.thread_id)
 
     return {
         "reply": assistant_reply,
-        "pdf_url": pdf_url
+        "pdf_url": pdf_url,
+        "homework_code": homework_code,
     }
+
+@app.get("/h/{code}", response_class=HTMLResponse)
+async def homework_page(code: str):
+    """Serve the lightweight quiz page for a homework code."""
+    hw = get_homework_code(code.upper())
+    if not hw:
+        return HTMLResponse("<h1>Homework code not found</h1><p>Check the code and try again.</p>", status_code=404)
+    homework_path = os.path.join(os.path.dirname(__file__), "homework.html")
+    if not os.path.exists(homework_path):
+        return HTMLResponse("<h1>Quiz page not available</h1>", status_code=500)
+    return FileResponse(homework_path)
+
+
+@app.get("/api/h/{code}")
+async def homework_data(code: str):
+    """Return homework data as JSON for the quiz page to consume."""
+    hw = get_homework_code(code.upper())
+    if not hw:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    return {
+        "code": hw["code"],
+        "homework_block": hw["homework_block"],
+        "quiz_questions": hw.get("quiz_questions", []),
+    }
+
+
+class QuizSubmission(BaseModel):
+    student_name: str = Field(..., min_length=1, max_length=100)
+    student_class: str = Field(..., min_length=1, max_length=50)
+    answers: list[int]
+
+
+@app.post("/h/{code}/submit")
+async def submit_quiz(code: str, submission: QuizSubmission):
+    """Grade and store a student's quiz submission."""
+    hw = get_homework_code(code.upper())
+    if not hw:
+        return JSONResponse({"error": "Homework code not found"}, status_code=404)
+
+    questions = hw.get("quiz_questions", [])
+    if not questions:
+        return JSONResponse({"error": "No quiz available for this code"}, status_code=400)
+
+    total = len(questions)
+    score = 0
+    results = []
+    for i, q in enumerate(questions):
+        student_answer = submission.answers[i] if i < len(submission.answers) else -1
+        correct = q.get("correct", -1)
+        is_correct = student_answer == correct
+        if is_correct:
+            score += 1
+        results.append({
+            "question": q["question"],
+            "options": q["options"],
+            "student_answer": student_answer,
+            "correct": correct,
+            "is_correct": is_correct,
+        })
+
+    save_quiz_submission(code.upper(), submission.student_name, submission.student_class, submission.answers, score, total)
+
+    return {
+        "score": score,
+        "total": total,
+        "results": results,
+    }
+
 
 if __name__ == "__main__":
     import uvicorn

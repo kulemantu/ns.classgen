@@ -197,12 +197,12 @@ Status: functional prototype, content quality is the main gap.
 Goal: make every lesson pack good enough that a teacher uses it tomorrow without editing.
 
 Changes:
-- [ ] Redesign system prompt for richer, more practical content
-- [ ] Exercise-book-first homework formats (stories, games, challenges, detective cases)
-- [ ] Add TEACHER_NOTES block (assessment tips, expected answers, common mistakes)
-- [ ] Improve ACTIVITY block (timing, grouping, materials, large-class-friendly)
+- [x] Redesign system prompt for richer, more practical content
+- [x] Exercise-book-first homework formats (stories, games, challenges, detective cases)
+- [x] Add TEACHER_NOTES block (assessment tips, expected answers, common mistakes)
+- [x] Improve ACTIVITY block (timing, grouping, materials, large-class-friendly)
 - [ ] Test with 5 real teachers -- iterate on content quality based on feedback
-- [ ] Curriculum awareness: prompt includes country/exam board context (WAEC, NECO, Cambridge)
+- [x] Curriculum awareness: prompt includes country/exam board context (WAEC, NECO, Cambridge)
 
 Success metric: 3 of 5 teachers say "I would use this tomorrow" without editing.
 

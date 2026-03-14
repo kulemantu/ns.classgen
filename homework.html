@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClassGen Homework</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,system-ui,sans-serif;background:#f5f5f5;color:#1a1a1a;line-height:1.5;padding:1rem;max-width:600px;margin:0 auto}
+h1{font-size:1.25rem;color:#4f46e5;margin-bottom:.25rem}
+.subtitle{font-size:.85rem;color:#666;margin-bottom:1.5rem}
+.card{background:#fff;border-radius:12px;padding:1.25rem;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.card h2{font-size:1rem;color:#333;margin-bottom:.5rem}
+.card p{font-size:.9rem;color:#555;white-space:pre-line}
+label{display:block;font-size:.85rem;font-weight:600;color:#333;margin-bottom:.25rem;margin-top:.75rem}
+input[type=text]{width:100%;padding:.6rem;border:1px solid #ddd;border-radius:8px;font-size:.9rem}
+input[type=text]:focus{outline:none;border-color:#4f46e5}
+.question{margin-bottom:1.25rem}
+.question p{font-weight:600;font-size:.9rem;margin-bottom:.4rem}
+.option{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border-radius:8px;cursor:pointer;font-size:.85rem;transition:background .15s}
+.option:hover{background:#f0f0ff}
+.option input[type=radio]{accent-color:#4f46e5}
+.option.correct{background:#dcfce7;border:1px solid #86efac}
+.option.wrong{background:#fee2e2;border:1px solid #fca5a5}
+button[type=submit]{width:100%;padding:.75rem;background:#4f46e5;color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;margin-top:1rem}
+button[type=submit]:hover{background:#4338ca}
+button[type=submit]:disabled{background:#999;cursor:not-allowed}
+.score-card{text-align:center;padding:2rem}
+.score-card .score{font-size:2.5rem;font-weight:700;color:#4f46e5}
+.score-card .label{font-size:.9rem;color:#666;margin-top:.25rem}
+.error{color:#dc2626;text-align:center;padding:2rem}
+#loading{text-align:center;padding:3rem;color:#666}
+</style>
+</head>
+<body>
+<h1>ClassGen Homework</h1>
+<div class="subtitle" id="code-display"></div>
+<div id="loading">Loading homework...</div>
+<div id="content" style="display:none">
+  <div class="card" id="homework-card">
+    <h2 id="hw-title"></h2>
+    <p id="hw-details"></p>
+  </div>
+  <div class="card">
+    <h2>Quick Quiz</h2>
+    <form id="quiz-form">
+      <label for="student-name">Your Name</label>
+      <input type="text" id="student-name" required placeholder="e.g. Amina Okafor">
+      <label for="student-class">Your Class</label>
+      <input type="text" id="student-class" required placeholder="e.g. SS2">
+      <div id="questions" style="margin-top:1rem"></div>
+      <button type="submit">Submit Answers</button>
+    </form>
+  </div>
+</div>
+<div id="result" style="display:none"></div>
+<div id="error-msg" class="error" style="display:none"></div>
+
+<script>
+const code = window.location.pathname.split('/').pop();
+document.getElementById('code-display').textContent = 'Code: ' + code;
+
+let quizData = [];
+
+async function load() {
+  try {
+    const res = await fetch('/api/h/' + code);
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error-msg').style.display = 'block';
+      document.getElementById('error-msg').textContent = 'Homework code not found. Check the code and try again.';
+      return;
+    }
+    quizData = data.quiz_questions || [];
+
+    // Homework block
+    const hw = data.homework_block || '';
+    const titleMatch = hw.match(/Title:\s*(.*?)(?:\n|$)/i);
+    const detailsMatch = hw.match(/Details:\s*([\s\S]*?)$/i);
+    document.getElementById('hw-title').textContent = titleMatch ? titleMatch[1].replace(/\*\*/g, '').trim() : 'Homework';
+    document.getElementById('hw-details').textContent = detailsMatch ? detailsMatch[1].trim() : hw;
+
+    // Quiz questions
+    const qContainer = document.getElementById('questions');
+    quizData.forEach(function(q, i) {
+      const div = document.createElement('div');
+      div.className = 'question';
+      div.id = 'q' + i;
+      let html = '<p>' + (i + 1) + '. ' + escapeHtml(q.question) + '</p>';
+      q.options.forEach(function(opt, j) {
+        html += '<label class="option"><input type="radio" name="q' + i + '" value="' + j + '" required> ' + escapeHtml(opt) + '</label>';
+      });
+      div.innerHTML = html;
+      qContainer.appendChild(div);
+    });
+
+    if (quizData.length === 0) {
+      qContainer.innerHTML = '<p style="color:#666;font-size:.85rem">No quiz questions available for this homework.</p>';
+      document.querySelector('button[type=submit]').style.display = 'none';
+    }
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+  } catch (e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error-msg').style.display = 'block';
+    document.getElementById('error-msg').textContent = 'Could not load homework. Please try again.';
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+document.getElementById('quiz-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = this.querySelector('button[type=submit]');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  const name = document.getElementById('student-name').value.trim();
+  const cls = document.getElementById('student-class').value.trim();
+  const answers = quizData.map(function(_, i) {
+    const sel = document.querySelector('input[name=q' + i + ']:checked');
+    return sel ? parseInt(sel.value) : -1;
+  });
+
+  try {
+    const res = await fetch('/h/' + code + '/submit', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({student_name: name, student_class: cls, answers: answers})
+    });
+    const data = await res.json();
+
+    // Highlight correct/wrong
+    data.results.forEach(function(r, i) {
+      const qDiv = document.getElementById('q' + i);
+      const options = qDiv.querySelectorAll('.option');
+      options.forEach(function(opt, j) {
+        if (j === r.correct) opt.classList.add('correct');
+        if (j === r.student_answer && !r.is_correct) opt.classList.add('wrong');
+        opt.querySelector('input').disabled = true;
+      });
+    });
+
+    // Show score
+    const resultDiv = document.getElementById('result');
+    resultDiv.innerHTML = '<div class="card score-card"><div class="score">' + data.score + '/' + data.total + '</div><div class="label">Well done, ' + escapeHtml(name) + '!</div></div>';
+    resultDiv.style.display = 'block';
+    btn.style.display = 'none';
+    document.getElementById('student-name').disabled = true;
+    document.getElementById('student-class').disabled = true;
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Submit Answers';
+    alert('Error submitting. Please try again.');
+  }
+});
+
+load();
+</script>
+</body>
+</html>
