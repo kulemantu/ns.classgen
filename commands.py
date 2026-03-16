@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from db import (
     save_teacher, get_teacher_by_phone, add_teacher_class,
     list_homework_codes_for_teacher, get_quiz_results,
+    get_class_leaderboard, get_student_progress,
+    save_parent_subscription,
     log_session,
 )
 
@@ -56,6 +58,25 @@ def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None
     if lower in ("my codes", "my homework", "codes"):
         return _cmd_my_codes(phone, base_url)
 
+    # --- V2.1: Leaderboard, progress, parent, study ---
+    if lower.startswith("leaderboard ") or lower.startswith("top "):
+        code = re.sub(r"^(leaderboard|top)\s+", "", text, flags=re.IGNORECASE).strip().upper()
+        return _cmd_leaderboard(code)
+
+    if lower.startswith("progress "):
+        # "progress Amina SS2" -> student name + class
+        parts = re.sub(r"^progress\s+", "", text, flags=re.IGNORECASE).strip()
+        return _cmd_student_progress(parts)
+
+    if lower.startswith("subscribe parent"):
+        # "subscribe parent +234... Amina SS2 Biology"
+        args = re.sub(r"^subscribe parent\s*", "", text, flags=re.IGNORECASE).strip()
+        return _cmd_subscribe_parent(phone, args)
+
+    if lower.startswith("study "):
+        topic = re.sub(r"^study\s+", "", text, flags=re.IGNORECASE).strip()
+        return _cmd_study_mode(topic)
+
     # Not a command — fall through to LLM
     return None
 
@@ -79,15 +100,20 @@ def _cmd_help(base_url: str) -> CommandResult:
         "Send any topic to generate a lesson:\n"
         '  _"SS2 Biology: Photosynthesis"_\n\n'
         "*Profile*\n"
-        '  register [Your Name] -- create your teacher profile\n'
+        "  register [Name] -- create your profile\n"
         "  my page -- view your profile URL\n"
         "  add class: SS2 Biology -- add a class\n\n"
-        "*Homework*\n"
-        "  my codes -- list your recent homework codes\n"
-        "  results CODE -- view quiz results\n\n"
+        "*Homework & Results*\n"
+        "  my codes -- list your recent codes\n"
+        "  results CODE -- quiz results summary\n"
+        "  leaderboard CODE -- top students\n"
+        "  progress [Name] [Class] -- student history\n\n"
+        "*Parents*\n"
+        "  subscribe parent [phone] [name] [class]\n\n"
         "*Other*\n"
+        "  study [topic] -- quick recap\n"
         "  new -- start a fresh lesson\n"
-        "  help -- show this menu"
+        "  help -- this menu"
     ))
 
 
@@ -174,3 +200,79 @@ def _cmd_my_codes(phone: str, base_url: str) -> CommandResult:
         code = hw.get("code", "?")
         lines.append(f"  *{code}* -- {base_url}/h/{code}")
     return CommandResult(reply="\n".join(lines))
+
+
+# --- V2.1 Commands ---
+
+def _cmd_leaderboard(code: str) -> CommandResult:
+    if not code:
+        return CommandResult(reply="Send: leaderboard CODE\n\nExample: leaderboard MATH42")
+    ranked = get_class_leaderboard(code, limit=10)
+    if not ranked:
+        return CommandResult(reply=f"No submissions yet for *{code}*.")
+    lines = [f"*Leaderboard for {code}*\n"]
+    for i, s in enumerate(ranked, 1):
+        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f"{i}.")
+        name = s.get("student_name", "?")
+        score = s.get("score", 0)
+        total = s.get("total", 5)
+        lines.append(f"  {medal} {name} -- {score}/{total}")
+    return CommandResult(reply="\n".join(lines))
+
+
+def _cmd_student_progress(args: str) -> CommandResult:
+    """Parse 'progress Amina SS2' -> name='Amina', class='SS2'."""
+    parts = args.rsplit(maxsplit=1)
+    if len(parts) < 2:
+        return CommandResult(reply="Send: progress [Name] [Class]\n\nExample: progress Amina SS2")
+    name, student_class = parts[0].strip(), parts[1].strip()
+    history = get_student_progress(name, student_class)
+    if not history:
+        return CommandResult(reply=f"No quiz history found for *{name}* in *{student_class}*.")
+    total_quizzes = len(history)
+    total_score = sum(s.get("score", 0) for s in history)
+    total_possible = sum(s.get("total", 5) for s in history)
+    pct = round(total_score / total_possible * 100) if total_possible else 0
+    lines = [
+        f"*Progress for {name} ({student_class})*\n",
+        f"Quizzes taken: {total_quizzes}",
+        f"Total score: {total_score}/{total_possible} ({pct}%)\n",
+        "*Recent:*",
+    ]
+    for s in history[:5]:
+        code = s.get("homework_code", "?")
+        lines.append(f"  {code}: {s.get('score', 0)}/{s.get('total', 5)}")
+    return CommandResult(reply="\n".join(lines))
+
+
+def _cmd_subscribe_parent(teacher_phone: str, args: str) -> CommandResult:
+    """Parse 'subscribe parent +234xxx Amina SS2 Biology'."""
+    match = re.match(r"(\+?\d{10,15})\s+(.+?)\s+(SS\d|JSS\d)\s*(.*)", args, re.IGNORECASE)
+    if not match:
+        return CommandResult(
+            reply="Send: subscribe parent [phone] [student name] [class]\n\n"
+                  "Example: subscribe parent +2348012345678 Amina SS2 Biology"
+        )
+    parent_phone = match.group(1)
+    student_name = match.group(2).strip()
+    student_class = (match.group(3) + " " + match.group(4)).strip()
+
+    teacher = get_teacher_by_phone(teacher_phone)
+    if not teacher:
+        return CommandResult(reply="Register first. Send: register [Your Name]")
+
+    save_parent_subscription(parent_phone, teacher_phone, student_name, student_class)
+    return CommandResult(
+        reply=f"Parent *{parent_phone}* subscribed for *{student_name}* in *{student_class}*.\n\n"
+              f"They'll receive weekly updates via WhatsApp."
+    )
+
+
+def _cmd_study_mode(topic: str) -> CommandResult:
+    """Study mode returns None to let the LLM handle it with a study-focused prompt."""
+    # We return a special result that main.py can use to trigger a study-mode LLM call
+    return CommandResult(
+        reply="",
+        session_action="study",
+        new_thread_id=topic,  # pass the topic through
+    )

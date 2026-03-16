@@ -36,3 +36,13 @@ CREATE TABLE IF NOT EXISTS quiz_submissions (
   total integer NOT NULL DEFAULT 0,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS parent_subscriptions (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  parent_phone text NOT NULL,
+  teacher_phone text NOT NULL REFERENCES teachers(phone),
+  student_name text NOT NULL,
+  student_class text NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  UNIQUE(parent_phone, teacher_phone, student_class)
+);

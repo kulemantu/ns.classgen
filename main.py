@@ -339,6 +339,18 @@ async def twilio_webhook(request: Request):
     # Try command router first
     cmd_result = handle_command(body, phone, base_url)
     if cmd_result:
+        # Study mode: send topic to LLM with a recap prompt
+        if cmd_result.session_action == "study":
+            topic = cmd_result.new_thread_id or body
+            study_prompt = (
+                "Give a concise study recap of this topic for a secondary school student. "
+                "Include: key definitions, the main formula/rule, one example, and 3 quick "
+                "self-test questions. Keep it under 1000 characters. Topic: " + topic
+            )
+            recap = await call_openrouter(CLASSGEN_SYSTEM_PROMPT, study_prompt)
+            twiml_response.message(recap or "Could not generate a recap right now. Try again.")
+            return Response(content=str(twiml_response), media_type="application/xml")
+
         twiml_response.message(cmd_result.reply)
         return Response(content=str(twiml_response), media_type="application/xml")
 

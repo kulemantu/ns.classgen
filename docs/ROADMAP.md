@@ -284,15 +284,15 @@ Technical:
 
 ---
 
-### V2.1 -- Parent & Student Layer
+### V2.1 -- Parent & Student Layer (DONE)
 
 Goal: extend the value chain beyond the classroom.
 
 Changes:
-- [ ] Opt-in parent WhatsApp digest (weekly per subject)
-- [ ] Student progress tracking (across homework code submissions)
-- [ ] Class leaderboard (opt-in, visible to teacher only by default)
-- [ ] "Study mode" -- student can request a recap of any lesson via WhatsApp
+- [x] Opt-in parent WhatsApp digest (`subscribe parent [phone] [name] [class]` command, `parent_subscriptions` table, `messaging.py` outbound module)
+- [x] Student progress tracking (`progress [Name] [Class]` command, aggregates scores across all quizzes)
+- [x] Class leaderboard (`leaderboard CODE` command, ranked by score)
+- [x] "Study mode" (`study [topic]` command, sends topic to LLM with recap-focused prompt, returns concise study notes)
 
 ---
 
