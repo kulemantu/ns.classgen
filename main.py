@@ -1,13 +1,20 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from fastapi.responses import Response, HTMLResponse, FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from twilio.twiml.messaging_response import MessagingResponse
-from utils import (
-    call_openrouter, log_session, get_session_history,
-    generate_homework_code, save_homework_code, get_homework_code,
+from twilio.request_validator import RequestValidator
+from utils import call_openrouter, generate_homework_code
+from db import (
+    log_session, get_session_history,
+    save_homework_code, get_homework_code,
     save_quiz_submission, get_quiz_results,
+    get_teacher_by_slug,
+    list_homework_codes_for_teacher,
 )
+from commands import handle_command
 from pdf_generator import generate_pdf_from_markdown
 import json
 import os
@@ -21,8 +28,31 @@ load_dotenv()
 # Create static dir if not exists
 os.makedirs("static", exist_ok=True)
 
-app = FastAPI(title="ClassGen MAP Backend")
+
+def _cleanup_old_pdfs(max_age_hours: int = 24):
+    """Delete generated PDFs older than max_age_hours on startup."""
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    cutoff = time.time() - (max_age_hours * 3600)
+    count = 0
+    for f in os.listdir(static_dir):
+        if f.startswith("lesson_plan_") and f.endswith(".pdf"):
+            path = os.path.join(static_dir, f)
+            if os.path.getmtime(path) < cutoff:
+                os.remove(path)
+                count += 1
+    if count:
+        print(f"Cleaned up {count} old PDF(s)")
+
+
+@asynccontextmanager
+async def lifespan(app):
+    _cleanup_old_pdfs()
+    yield
+
+
+app = FastAPI(title="ClassGen MAP Backend", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
 # Shared system prompt — single source of truth for both endpoints
 CLASSGEN_SYSTEM_PROMPT = """You are ClassGen, a lesson pack engine for secondary school teachers in Africa.
@@ -31,7 +61,7 @@ You generate structured, ready-to-teach lesson packs. Teachers should be able to
 
 ## PHASE 1: COLLECT CONTEXT
 
-You need: Subject, Topic, and Class level. If any are missing from the conversation, ask ONE short clarifying question. Do not ask multiple questions at once.
+You need: Subject, Topic, and Class level. If ANY are missing from the conversation, ask for ALL missing fields in a single message. Do NOT ask for them one at a time across multiple turns -- teachers on WhatsApp over 2G cannot afford multiple round-trips.
 
 Default duration to 40 minutes if not specified.
 
@@ -181,12 +211,12 @@ async def _generate_quiz_questions(lesson_content: str) -> list:
         questions = json.loads(raw)
         if isinstance(questions, list) and len(questions) > 0:
             return questions[:5]
-    except (json.JSONDecodeError, Exception) as e:
+    except Exception as e:
         print(f"Error generating quiz: {e}")
     return []
 
 
-async def _generate_lesson(user_message: str, thread_id: str, limit: int = 3) -> tuple[str, str | None, str | None]:
+async def _generate_lesson(user_message: str, thread_id: str, limit: int = 10, teacher_phone: str = "") -> tuple[str, str | None, str | None]:
     """Shared logic: log input, call LLM, generate PDF + homework code, log output.
     Returns (reply, pdf_url, homework_code)."""
     log_session(thread_id, "user", user_message)
@@ -211,7 +241,7 @@ async def _generate_lesson(user_message: str, thread_id: str, limit: int = 3) ->
     if _has_lesson_blocks(assistant_reply):
         try:
             pdf_text = _clean_block_markers_for_pdf(assistant_reply)
-            pdf_filename = generate_pdf_from_markdown(pdf_text)
+            pdf_filename = generate_pdf_from_markdown(pdf_text, subtitle=user_message[:120])
             pdf_url = f"/static/{pdf_filename}" if pdf_filename else None
         except Exception as e:
             print(f"Error generating PDF: {e}")
@@ -221,7 +251,7 @@ async def _generate_lesson(user_message: str, thread_id: str, limit: int = 3) ->
             homework_code = generate_homework_code()
             homework_block = _extract_homework_block(assistant_reply)
             quiz_questions = await _generate_quiz_questions(assistant_reply)
-            save_homework_code(homework_code, thread_id, assistant_reply, quiz_questions, homework_block)
+            save_homework_code(homework_code, thread_id, assistant_reply, quiz_questions, homework_block, teacher_phone=teacher_phone)
         except Exception as e:
             print(f"Error generating homework code: {e}")
             homework_code = None
@@ -234,45 +264,101 @@ async def root():
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return HTMLResponse("<h1>ClassGen Local Backend Proxy is running.</h1><p>index.html not found.</p>")
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+def _whatsapp_summary(lesson_text: str, homework_code: str | None, base_url: str) -> str:
+    """Create a WhatsApp-friendly summary (under 1500 chars) from a full lesson pack."""
+    titles = re.findall(
+        r'\[BLOCK_START_(\w+)\].*?Title:\s*\*{0,2}(.*?)\*{0,2}\s*(?:\n|$)',
+        lesson_text, re.DOTALL
+    )
+    labels = {
+        "OPENER": "Hook", "EXPLAIN": "Concept", "ACTIVITY": "Activity",
+        "HOMEWORK": "Homework", "TEACHER_NOTES": "Notes",
+    }
+
+    parts = ["*ClassGen Lesson Pack*\n"]
+    for block_type, title in titles:
+        label = labels.get(block_type, block_type.title())
+        parts.append(f"  *{label}:* {title.strip()}")
+
+    if homework_code:
+        parts.append(f"\n*Homework Code:* {homework_code}")
+        parts.append(f"Students visit: {base_url}/h/{homework_code}")
+
+    parts.append("\nFull lesson plan attached as PDF.")
+    return "\n".join(parts)
+
+
 @app.post("/webhook/twilio")
 async def twilio_webhook(request: Request):
     """Endpoint for receiving WhatsApp messages from Twilio."""
     form_data = await request.form()
 
+    # Validate Twilio signature if auth token is configured
+    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    if auth_token:
+        validator = RequestValidator(auth_token)
+        signature = request.headers.get("X-Twilio-Signature", "")
+        url = str(request.url)
+        if not validator.validate(url, dict(form_data), signature):
+            return Response(content="Forbidden", status_code=403)
+
     from_number = form_data.get("From", "")
-    body = form_data.get("Body", "")
-    media_url = form_data.get("MediaUrl0", "")
-    content_type = form_data.get("MediaContentType0", "")
+    body = str(form_data.get("Body", ""))
+    media_url = str(form_data.get("MediaUrl0", ""))
+    content_type = str(form_data.get("MediaContentType0", ""))
 
     print(f"Received from {from_number}: {body} (Media: {media_url})")
 
     twiml_response = MessagingResponse()
+    base_url = f"{request.url.scheme}://{request.url.netloc}"
+    phone = str(from_number)
 
-    # Thread tracking — phone number + hourly window
-    session_window = str(int(time.time() // 3600))
-    thread_id = f"{from_number}_{session_window}"
-
-    # Voice note handling (transcription placeholder)
-    user_input = body
+    # Reject voice notes gracefully
     if media_url and "audio" in content_type:
-        # TODO: Transcription via Whisper
-        user_input = f"[Voice Note Transcription Placeholder: Teacher asked for a lesson plan. Original body: {body}]"
-
-    if not user_input.strip() and not media_url:
-        twiml_response.message("Welcome to ClassGen! Send a topic or voice note to get started.")
+        twiml_response.message(
+            "Voice notes aren't supported yet. Please type your request "
+            '-- e.g. "SS2 Biology: Photosynthesis"'
+        )
         return Response(content=str(twiml_response), media_type="application/xml")
 
-    ai_response_text, pdf_url, homework_code = await _generate_lesson(user_input, thread_id)
+    if not body.strip():
+        twiml_response.message(
+            'Welcome to ClassGen! Send a topic to get started '
+            '-- e.g. "SS2 Biology: Photosynthesis"\n\n'
+            'Send "help" for all commands.'
+        )
+        return Response(content=str(twiml_response), media_type="application/xml")
 
-    reply_text = ai_response_text
-    if homework_code:
-        reply_text += f"\n\nHomework Code: {homework_code}\nStudents visit: /h/{homework_code}"
+    # Try command router first
+    cmd_result = handle_command(body, phone, base_url)
+    if cmd_result:
+        twiml_response.message(cmd_result.reply)
+        return Response(content=str(twiml_response), media_type="application/xml")
+
+    # Not a command — generate a lesson
+    thread_id = phone
+    ai_response_text, pdf_url, homework_code = await _generate_lesson(body, thread_id, teacher_phone=phone)
+
+    # Build WhatsApp-friendly reply (keep under 1500 chars to avoid truncation)
+    if _has_lesson_blocks(ai_response_text) and len(ai_response_text) > 1500:
+        reply_text = _whatsapp_summary(ai_response_text, homework_code, base_url)
+    else:
+        reply_text = ai_response_text
+        if homework_code:
+            reply_text += f"\n\nHomework Code: {homework_code}\nStudents visit: {base_url}/h/{homework_code}"
 
     msg = twiml_response.message(reply_text)
 
     # Attach PDF as media if available
     if from_number and pdf_url:
-        full_pdf_url = f"{request.url.scheme}://{request.url.netloc}{pdf_url}"
+        full_pdf_url = f"{base_url}{pdf_url}"
         msg.media(full_pdf_url)
 
     return Response(content=str(twiml_response), media_type="application/xml")
@@ -360,6 +446,121 @@ async def submit_quiz(code: str, submission: QuizSubmission):
         "total": total,
         "results": results,
     }
+
+
+@app.get("/h/{code}/results", response_class=HTMLResponse)
+async def homework_results_page(code: str):
+    """Serve the teacher results page for a homework code."""
+    hw = get_homework_code(code.upper())
+    if not hw:
+        return HTMLResponse("<h1>Homework code not found</h1><p>Check the code and try again.</p>", status_code=404)
+    results_path = os.path.join(os.path.dirname(__file__), "results.html")
+    if not os.path.exists(results_path):
+        return HTMLResponse("<h1>Results page not available</h1>", status_code=500)
+    return FileResponse(results_path)
+
+
+@app.get("/api/h/{code}/results")
+async def homework_results_data(code: str):
+    """Return quiz submission results for a homework code."""
+    hw = get_homework_code(code.upper())
+    if not hw:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+
+    submissions = get_quiz_results(code.upper())
+    total_submissions = len(submissions)
+    avg_score = (
+        sum(s.get("score", 0) for s in submissions) / total_submissions
+        if total_submissions > 0 else 0
+    )
+
+    # Per-question breakdown
+    questions = hw.get("quiz_questions", [])
+    question_stats = []
+    for i, q in enumerate(questions):
+        correct_count = sum(
+            1 for s in submissions
+            if i < len(s.get("answers", [])) and s["answers"][i] == q.get("correct", -1)
+        )
+        question_stats.append({
+            "question": q["question"],
+            "correct_count": correct_count,
+            "total_attempts": total_submissions,
+            "percent_correct": round(correct_count / total_submissions * 100) if total_submissions else 0,
+        })
+
+    return {
+        "code": code.upper(),
+        "total_submissions": total_submissions,
+        "average_score": round(avg_score, 1),
+        "total_questions": len(questions),
+        "submissions": [
+            {
+                "student_name": s.get("student_name"),
+                "student_class": s.get("student_class"),
+                "score": s.get("score"),
+                "total": s.get("total"),
+                "created_at": s.get("created_at"),
+            }
+            for s in submissions
+        ],
+        "question_stats": question_stats,
+    }
+
+
+@app.get("/t/{slug}", response_class=HTMLResponse)
+async def teacher_profile(request: Request, slug: str):
+    """Public teacher profile page."""
+    teacher = get_teacher_by_slug(slug)
+    if not teacher:
+        return HTMLResponse("<h1>Teacher not found</h1>", status_code=404)
+
+    phone = teacher.get("phone", "")
+    codes_raw = list_homework_codes_for_teacher(phone, limit=10)
+    codes = []
+    for hw in codes_raw:
+        block = hw.get("homework_block", "")
+        title_match = re.search(r"Title:\s*(.*?)(?:\n|$)", block)
+        codes.append({
+            "code": hw.get("code", ""),
+            "title": title_match.group(1).strip() if title_match else "Homework",
+        })
+
+    return templates.TemplateResponse(request, "profile.html", {
+        "teacher": teacher,
+        "codes": codes,
+    })
+
+
+@app.post("/api/dev/seed")
+async def dev_seed():
+    """Seed mock data for local testing. Only works without Supabase."""
+    from db import supabase as _sb, save_teacher
+    if _sb:
+        return JSONResponse({"error": "Only available in local dev mode"}, status_code=403)
+
+    # Seed a teacher
+    teacher = save_teacher("+2348012345678", "Mrs. Okafor", "Lagos Model School")
+    from db import add_teacher_class
+    add_teacher_class("+2348012345678", "SS2 Biology")
+    add_teacher_class("+2348012345678", "SS1 Mathematics")
+
+    # Seed a homework code linked to the teacher
+    code = "TEST01"
+    quiz = [
+        {"question": "What gas do plants absorb during photosynthesis?", "options": ["A) Oxygen", "B) Nitrogen", "C) Carbon dioxide", "D) Hydrogen"], "correct": 2},
+        {"question": "Where in the leaf does photosynthesis mainly occur?", "options": ["A) Roots", "B) Stem", "C) Chloroplasts", "D) Bark"], "correct": 2},
+        {"question": "What is the green pigment in leaves called?", "options": ["A) Melanin", "B) Chlorophyll", "C) Haemoglobin", "D) Keratin"], "correct": 1},
+        {"question": "What is the main product of photosynthesis?", "options": ["A) Protein", "B) Starch", "C) Glucose", "D) Fat"], "correct": 2},
+        {"question": "Which of these is NOT needed for photosynthesis?", "options": ["A) Sunlight", "B) Water", "C) Soil", "D) Carbon dioxide"], "correct": 2},
+    ]
+    hw_block = (
+        "Title: The Plant Engineer's Report\n"
+        "Summary: Story problem\n"
+        "Details: You are a botanist hired by a village to explain why their crops are dying."
+    )
+    save_homework_code(code, "dev_seed", "Mock lesson content", quiz, hw_block, teacher_phone="+2348012345678")
+    return {"seeded": code, "teacher_slug": teacher.get("slug"), "quiz_questions": len(quiz)}
 
 
 if __name__ == "__main__":

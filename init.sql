@@ -6,10 +6,20 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS teachers (
+  phone text PRIMARY KEY,
+  name text NOT NULL,
+  slug text UNIQUE NOT NULL,
+  school text NOT NULL DEFAULT '',
+  classes jsonb NOT NULL DEFAULT '[]',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS homework_codes (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   code text UNIQUE NOT NULL,
   thread_id text NOT NULL,
+  teacher_phone text REFERENCES teachers(phone) DEFAULT NULL,
   lesson_content text NOT NULL,
   quiz_questions jsonb NOT NULL DEFAULT '[]',
   homework_block text NOT NULL DEFAULT '',

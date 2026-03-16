@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ teacher.name }} - ClassGen{% endblock %}
+
+{% block body %}
+<h1>{{ teacher.name }}</h1>
+<div class="subtitle">
+  {% if teacher.school %}{{ teacher.school }} &middot; {% endif %}ClassGen Teacher
+</div>
+
+{% if teacher.classes %}
+<div class="card">
+  <h2>Classes</h2>
+  <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+    {% for cls in teacher.classes %}
+    <span class="badge">{{ cls }}</span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if codes %}
+<div class="card">
+  <h2>Recent Homework</h2>
+  <table>
+    <thead><tr><th>Code</th><th>Homework</th><th>Quiz</th></tr></thead>
+    <tbody>
+    {% for hw in codes %}
+    <tr>
+      <td><a href="/h/{{ hw.code }}"><strong>{{ hw.code }}</strong></a></td>
+      <td>{{ hw.title }}</td>
+      <td><a href="/h/{{ hw.code }}/results">Results</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty">No homework codes yet.</div>
+</div>
+{% endif %}
+{% endblock %}

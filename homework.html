@@ -57,7 +57,7 @@ button[type=submit]:disabled{background:#999;cursor:not-allowed}
 <div id="error-msg" class="error" style="display:none"></div>
 
 <script>
-const code = window.location.pathname.split('/').pop();
+const code = window.location.pathname.replace(/\/+$/, '').split('/').pop();
 document.getElementById('code-display').textContent = 'Code: ' + code;
 
 let quizData = [];

@@ -1,5 +1,4 @@
 import os
-import pytest
 from pdf_generator import generate_pdf_from_markdown
 
 def test_generate_pdf_from_markdown():

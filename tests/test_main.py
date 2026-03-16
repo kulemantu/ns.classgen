@@ -1,6 +1,5 @@
-import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock
 from main import app
 
 client = TestClient(app)
@@ -39,7 +38,8 @@ SAMPLE_QUIZ = [
 @patch("main.log_session")
 @patch("main.get_session_history")
 @patch("main.generate_pdf_from_markdown")
-def test_twilio_webhook_text_input(mock_generate_pdf, mock_get_history, mock_log, mock_call_openrouter, mock_gen_code, mock_save_code):
+@patch("main.handle_command", return_value=None)
+def test_twilio_webhook_text_input(mock_cmd, mock_generate_pdf, mock_get_history, mock_log, mock_call_openrouter, mock_gen_code, mock_save_code):
     mock_get_history.return_value = []
     # First call returns lesson, second returns quiz JSON
     mock_call_openrouter.side_effect = [SAMPLE_LESSON_RESPONSE, '[{"question":"Q1","options":["A","B","C","D"],"correct":0}]']
@@ -68,7 +68,8 @@ def test_twilio_webhook_text_input(mock_generate_pdf, mock_get_history, mock_log
 @patch("main.call_openrouter", new_callable=AsyncMock)
 @patch("main.log_session")
 @patch("main.get_session_history")
-def test_twilio_webhook_clarifying_question_no_pdf(mock_get_history, mock_log, mock_call_openrouter):
+@patch("main.handle_command", return_value=None)
+def test_twilio_webhook_clarifying_question_no_pdf(mock_cmd, mock_get_history, mock_log, mock_call_openrouter):
     """Clarifying questions should NOT generate a PDF or homework code."""
     mock_get_history.return_value = []
     mock_call_openrouter.return_value = "What grade level are we working with?\nSUGGESTIONS: [SS1] | [SS2] | [SS3]"
@@ -85,15 +86,8 @@ def test_twilio_webhook_clarifying_question_no_pdf(mock_get_history, mock_log, m
     assert "What grade level" in content
     assert "<Media>" not in content
 
-@patch("main.save_homework_code")
-@patch("main.generate_homework_code", return_value="AUDIO1")
-@patch("main.call_openrouter", new_callable=AsyncMock)
-@patch("main.log_session")
-@patch("main.generate_pdf_from_markdown")
-def test_twilio_webhook_voice_note(mock_generate_pdf, mock_log, mock_call_openrouter, mock_gen_code, mock_save_code):
-    mock_call_openrouter.return_value = "Here is the audio interpreted Plan A and Plan B"
-    mock_generate_pdf.return_value = "lesson_plan_audio.pdf"
-
+def test_twilio_webhook_voice_note():
+    """Voice notes should be rejected gracefully without calling the LLM."""
     form_data = {
         "From": "whatsapp:+0987654321",
         "Body": "",
@@ -105,10 +99,8 @@ def test_twilio_webhook_voice_note(mock_generate_pdf, mock_log, mock_call_openro
 
     assert response.status_code == 200
     content = response.text
-    assert "Here is the audio interpreted" in content
-
-    call_args = mock_log.call_args_list[0]
-    assert "Voice Note Transcription Placeholder" in call_args[0][2]
+    assert "Voice notes" in content
+    assert "supported yet" in content
 
 def test_twilio_webhook_empty_input():
     form_data = {
