@@ -11,11 +11,12 @@ from db import (
     log_session, get_session_history,
     save_homework_code, get_homework_code,
     save_quiz_submission, get_quiz_results,
-    get_teacher_by_slug,
-    list_homework_codes_for_teacher,
+    get_teacher_by_slug, list_homework_codes_for_teacher,
     log_lesson_generated, get_cached_lesson, cache_lesson,
+    get_school, get_school_teachers,
 )
 from commands import handle_command
+from billing import check_usage, log_usage
 from pdf_generator import generate_pdf_from_markdown
 import json
 import os
@@ -65,6 +66,9 @@ You generate structured, ready-to-teach lesson packs. Teachers should be able to
 You need: Subject, Topic, and Class level. If ANY are missing from the conversation, ask for ALL missing fields in a single message. Do NOT ask for them one at a time across multiple turns -- teachers on WhatsApp over 2G cannot afford multiple round-trips.
 
 Default duration to 40 minutes if not specified.
+
+## LANGUAGE
+If the teacher writes in French, Yoruba, Hausa, Swahili, or any other language, respond in that language. If they explicitly request a bilingual lesson (e.g. "in English and Yoruba"), generate the lesson with both languages -- English for the main content and the local language for key terms, instructions to students, and the homework narrative.
 
 When asking a clarifying question, end your response with this exact format:
 SUGGESTIONS: [Option A] | [Option B] | [Option C]
@@ -388,8 +392,16 @@ async def twilio_webhook(request: Request):
         return Response(content=str(twiml_response), media_type="application/xml")
 
     # Not a command — generate a lesson
+    # Check usage quota first
+    usage = check_usage(phone)
+    if not usage.allowed:
+        twiml_response.message(usage.message)
+        return Response(content=str(twiml_response), media_type="application/xml")
+
     thread_id = phone
     ai_response_text, pdf_url, homework_code = await _generate_lesson(body, thread_id, teacher_phone=phone)
+    if _has_lesson_blocks(ai_response_text):
+        log_usage(phone, "lesson")
 
     # Build WhatsApp-friendly reply (keep under 1500 chars to avoid truncation)
     if _has_lesson_blocks(ai_response_text) and len(ai_response_text) > 1500:
@@ -574,6 +586,30 @@ async def teacher_profile(request: Request, slug: str):
     return templates.TemplateResponse(request, "profile.html", {
         "teacher": teacher,
         "codes": codes,
+    })
+
+
+@app.get("/s/{slug}", response_class=HTMLResponse)
+async def school_admin(request: Request, slug: str):
+    """School admin dashboard."""
+    school = get_school(slug)
+    if not school:
+        return HTMLResponse("<h1>School not found</h1>", status_code=404)
+
+    teachers = get_school_teachers(slug)
+    # Enrich with lesson counts
+    for t in teachers:
+        codes = list_homework_codes_for_teacher(t.get("phone", ""), limit=100)
+        t["lesson_count"] = len(codes)
+
+    total_lessons = sum(t.get("lesson_count", 0) for t in teachers)
+    total_students = 0  # Would aggregate quiz submissions across all teachers
+
+    return templates.TemplateResponse(request, "admin.html", {
+        "school": school,
+        "teachers": teachers,
+        "total_lessons": total_lessons,
+        "total_students": total_students,
     })
 
 

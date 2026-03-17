@@ -123,23 +123,50 @@ The app auto-connects to PostgREST as its Supabase backend via env vars set in c
 - All 5 WhatsApp commands via webhook: help, register, my page, add class, reset
 - Dynamic profile creation via `register` command -> immediately visible at `/t/mr-adeyemi`
 
-### Architecture (current)
+### V3.0 -- Platform (2026-03-17)
+
+**3.0a -- Curriculum Assist:**
+- `curriculum.py` -- WAEC topic lists for 5 subjects, ~180 topics
+- `suggest` / `covered` commands for topic guidance
+- Content cache: identical lesson requests skip LLM
+- Lesson history: auto-logged for coverage tracking
+
+**3.0b -- Billing:**
+- `billing.py` -- usage tracking, subscription tiers (Free/Premium/School), quota enforcement
+- Paystack + bank transfer payment providers (provider-agnostic abstraction)
+- Usage check integrated into webhook handler before LLM calls
+
+**3.0c -- School Admin & Worksheets:**
+- School admin dashboard at `/s/{slug}` with teacher stats
+- `worksheet.py` -- bingo grids, fill-in-the-blank, flashcard cut-outs
+- `db.py` -- school CRUD operations
+
+**3.0d -- Multi-language:**
+- System prompt detects teacher's language automatically
+- Bilingual lesson packs on request
+
+### Architecture (V3.0)
 
 ```
-main.py          -- FastAPI app, endpoints, system prompt, LLM orchestration
-commands.py      -- WhatsApp command router (help, register, profile, codes, results)
-db.py            -- Data access layer (Supabase + in-memory fallback)
+main.py          -- FastAPI app, endpoints, system prompt, LLM orchestration, usage quota
+commands.py      -- WhatsApp command router (16 commands)
+db.py            -- Data access layer (sessions, teachers, schools, homework, quizzes, lessons, cache, parents)
 utils.py         -- OpenRouter LLM client + homework code generator
-pdf_generator.py -- FPDF2 PDF generation
-templates/       -- Jinja2 templates (base.html, profile.html)
-index.html       -- Web chat UI (standalone, CSS gradient)
-homework.html    -- Student quiz page (standalone, ~5KB)
-results.html     -- Teacher results dashboard (standalone)
+billing.py       -- Usage tracking, subscription tiers, payment providers (Paystack, bank transfer)
+curriculum.py    -- WAEC topic lists, suggest/covered logic
+jobs.py          -- Async batch job queue (Redis + in-memory fallback)
+messaging.py     -- Outbound Twilio WhatsApp messaging
+pdf_generator.py -- Lesson PDFs + combined week-pack PDFs
+worksheet.py     -- Printable worksheets (bingo, fill-in-blank, flashcards)
+templates/       -- Jinja2: base.html, profile.html, admin.html
+index.html       -- Web chat UI
+homework.html    -- Student quiz page
+results.html     -- Teacher results dashboard
 ```
 
 ## What's Next
 
-- Migrate homework.html and results.html to Jinja2 templates (extend base.html)
-- Build outbound Twilio messaging (`messaging.py`) for quiz result summaries
-- V2.1: parent WhatsApp digest, student progress tracking
 - Generate 3 sample packs and test with 5 real teachers
+- Deploy to production (Supabase + domain + Twilio)
+- Seed curriculum data for additional exam boards (NECO, Cambridge)
+- Migrate homework.html and results.html to Jinja2 templates

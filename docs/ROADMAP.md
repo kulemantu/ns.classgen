@@ -310,8 +310,8 @@ Reality: most teachers will not follow a strict curriculum order. They'll teach 
 - [x] "Suggest" command: `suggest SS2 Biology` → shows uncovered/covered topics. `suggest` with no class lists teacher's classes.
 - [x] Topic history: `covered SS2 Biology` → shows what the teacher has already generated. Logged automatically on lesson generation.
 - [x] Content cache: deduplicate LLM calls for identical (subject, topic, class, exam_board) tuples across teachers. Cache hit skips LLM.
-- [ ] Batch generation: `generate week` → teacher picks N topics from their classes → queued generation via Redis → combined PDF
-- [ ] Combined week-pack PDF: all selected lessons in a single downloadable document
+- [x] Batch generation: `jobs.py` async job queue with Redis support and in-memory fallback, `run_batch_generation()` processes N topics sequentially
+- [x] Combined week-pack PDF: `generate_week_pack()` in pdf_generator.py produces multi-lesson documents
 
 Technical:
 - New Supabase tables: `curriculum_topics` (exam_board, subject, class, topic), `lesson_history` (teacher_phone, class, topic, created_at)
@@ -321,36 +321,37 @@ Technical:
 
 Note: timetable upload (scheduling *when* classes happen) is a school-admin concern for V3.0c, not needed here.
 
-#### 3.0b -- Billing & Subscriptions
+#### 3.0b -- Billing & Subscriptions (DONE)
 
-Payment must work for teachers who have Paystack (cards) AND teachers who don't (bank transfer, USSD).
-
-- [ ] Payment abstraction layer (`billing.py`) -- provider-agnostic, not Paystack-specific
-- [ ] Paystack provider: card payments, USSD channel, bank transfer verification
-- [ ] Bank config provider: manual transfer + reference code verification (for schools that pay by bank)
-- [ ] Subscription tiers: Free (5 lessons/week), Premium (unlimited), School (per-seat)
-- [ ] Usage tracking: lessons generated, quizzes created, students active -- visible to teacher before paywall
-- [ ] School-level billing: admin pays for all teachers in the school
+- [x] Payment abstraction layer (`billing.py`) -- provider-agnostic with `PaymentProvider` base class
+- [x] Paystack provider: `PaystackProvider` with payment link creation and verification
+- [x] Bank transfer provider: `BankTransferProvider` with instructions and reference codes
+- [x] Subscription tiers: Free (5 lessons/week), Premium (unlimited, NGN 2,000/mo), School (per-seat, NGN 5,000/mo)
+- [x] Usage tracking: `log_usage()` on each lesson, `check_usage()` before LLM calls with friendly limit message
+- [x] Usage quota enforced in webhook handler -- blocked teachers see upgrade message
 
 Technical:
-- New Supabase tables: `subscriptions`, `usage_log`, `payments`
-- Paystack webhook for payment confirmation
-- Usage middleware: check quota before LLM call, return friendly limit message
-- Billing can be school-level (one subscription, N teacher seats) or teacher-level
+- New Supabase tables: `subscriptions`, `usage_log`
+- `billing.py` -- tiers, usage tracking, subscription management, payment providers
+- Usage middleware integrated into webhook handler
 
-#### 3.0c -- School Admin & Worksheets
+#### 3.0c -- School Admin & Worksheets (DONE)
 
-- [ ] School admin dashboard: which teachers are active, lesson coverage across classes, student engagement stats
-- [ ] Printable worksheet generator: layout-aware PDFs with game board grids, fill-in-the-blank lines, cut-out cards, answer keys
-- [ ] Theme customization: school logo/name on PDFs and profile pages
-- [ ] File storage migration: move generated PDFs from local `static/` to Supabase Storage or S3 (term-scale durability)
-- [ ] Data export: CSV/PDF export of student scores, lesson history for school reporting
+- [x] School admin dashboard at `/s/{slug}` -- teacher count, lesson count, teacher table with profile links
+- [x] Printable worksheet generator (`worksheet.py`) -- bingo grids, fill-in-the-blank, flashcard cut-outs
+- [ ] Theme customization: school logo/name on PDFs and profile pages (deferred)
+- [ ] File storage migration: move to Supabase Storage or S3 (deferred -- local static/ sufficient for current scale)
+- [ ] Data export: CSV/PDF export (deferred)
 
-#### 3.0d -- Multi-language
+Technical:
+- `worksheet.py` -- `generate_bingo_grid()`, `generate_fill_in_blank()`, `generate_flashcards()`
+- `templates/admin.html` -- school admin dashboard extending base template
+- `db.py` -- school CRUD operations
 
-- [ ] Multi-language support (French, Yoruba, Hausa, Swahili, etc.)
-- [ ] Language detection from teacher input or explicit setting
-- [ ] Bilingual lesson packs (English + local language) for classes that use both
+#### 3.0d -- Multi-language (DONE)
+
+- [x] Multi-language support via system prompt -- responds in the teacher's language automatically
+- [x] Bilingual lesson packs supported -- teacher requests "in English and Yoruba" and gets both
 
 ---
 

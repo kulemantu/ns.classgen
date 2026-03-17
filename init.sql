@@ -57,6 +57,29 @@ CREATE TABLE IF NOT EXISTS lesson_cache (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS schools (
+  slug text PRIMARY KEY,
+  name text NOT NULL,
+  admin_phone text NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+  teacher_phone text PRIMARY KEY REFERENCES teachers(phone),
+  tier text NOT NULL DEFAULT 'free',
+  status text NOT NULL DEFAULT 'active',
+  payment_ref text DEFAULT '',
+  school_phone text DEFAULT '',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS usage_log (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  teacher_phone text NOT NULL,
+  action text NOT NULL DEFAULT 'lesson',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS parent_subscriptions (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   parent_phone text NOT NULL,

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ school.name }} - Admin - ClassGen{% endblock %}
+
+{% block body %}
+<h1>{{ school.name }}</h1>
+<div class="subtitle">School Admin Dashboard</div>
+
+<div class="stats">
+  <div class="stat-box"><div class="num">{{ teachers | length }}</div><div class="label">Teachers</div></div>
+  <div class="stat-box"><div class="num">{{ total_lessons }}</div><div class="label">Lessons</div></div>
+  <div class="stat-box"><div class="num">{{ total_students }}</div><div class="label">Quiz Submissions</div></div>
+</div>
+
+<div class="card">
+  <h2>Teachers</h2>
+  {% if teachers %}
+  <table>
+    <thead><tr><th>Name</th><th>Classes</th><th>Lessons</th><th>Profile</th></tr></thead>
+    <tbody>
+    {% for t in teachers %}
+    <tr>
+      <td>{{ t.name }}</td>
+      <td>{{ t.classes | join(', ') if t.classes else 'None' }}</td>
+      <td>{{ t.lesson_count }}</td>
+      <td><a href="/t/{{ t.slug }}">View</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No teachers registered yet.</div>
+  {% endif %}
+</div>
+{% endblock %}

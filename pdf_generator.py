@@ -160,3 +160,68 @@ def generate_pdf_from_markdown(md_text: str, subtitle: str = "") -> str:
     file_path = os.path.join(static_dir, filename)
     pdf.output(file_path)
     return filename
+
+
+def generate_week_pack(lessons: list[dict], teacher_name: str = "") -> str:
+    """Generate a combined PDF with multiple lessons.
+
+    Each lesson dict has: {title, content} where content is block-stripped text.
+    Returns the filename.
+    """
+    subtitle = f"Week Pack -- {teacher_name}" if teacher_name else "Week Pack"
+    pdf = ClassGenPDF(subtitle=subtitle)
+    epw = pdf.w - pdf.l_margin - pdf.r_margin
+
+    for i, lesson in enumerate(lessons):
+        pdf.add_page()
+        pdf.set_font("helvetica", "B", 14)
+        pdf.set_x(pdf.l_margin)
+        lesson_title = _sanitize_for_latin1(lesson.get("title", f"Lesson {i + 1}"))
+        pdf.multi_cell(epw, 8, lesson_title)
+        pdf.ln(4)
+
+        content = _sanitize_for_latin1(lesson.get("content", ""))
+        block_pattern = re.compile(
+            r'Title:\s*\*{0,2}(.*?)\*{0,2}\s*\n'
+            r'Summary:\s*(.*?)\n'
+            r'Details:\s*(.*?)(?=\nTitle:|\Z)',
+            re.DOTALL
+        )
+        blocks = list(block_pattern.finditer(content))
+
+        if blocks:
+            for block_match in blocks:
+                title = block_match.group(1).replace('**', '').strip()
+                summary = block_match.group(2).strip()
+                details = block_match.group(3).strip()
+
+                pdf.set_x(pdf.l_margin)
+                pdf.set_font("helvetica", "B", 12)
+                pdf.multi_cell(epw, 7, _safe_line(title))
+                pdf.set_x(pdf.l_margin)
+                pdf.set_font("helvetica", "I", 10)
+                pdf.multi_cell(epw, 5, _safe_line(summary))
+                pdf.ln(2)
+                pdf.set_font("helvetica", size=10)
+                for line in details.split('\n'):
+                    line = line.strip()
+                    if not line:
+                        pdf.ln(2)
+                        continue
+                    pdf.set_x(pdf.l_margin)
+                    pdf.multi_cell(epw, 5, _safe_line(line.replace('**', '')))
+                pdf.ln(4)
+        else:
+            pdf.set_font("helvetica", size=10)
+            for line in content.split('\n'):
+                line = line.strip()
+                if not line:
+                    pdf.ln(3)
+                    continue
+                pdf.set_x(pdf.l_margin)
+                pdf.multi_cell(epw, 5, _safe_line(line.replace('**', '')))
+
+    filename = f"week_pack_{uuid.uuid4().hex[:8]}.pdf"
+    file_path = os.path.join(static_dir, filename)
+    pdf.output(file_path)
+    return filename
