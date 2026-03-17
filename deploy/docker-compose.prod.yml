@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Production stack for ClassGen
 # Usage: cd deploy && docker compose -f docker-compose.prod.yml up -d
 #

@@ -102,5 +102,45 @@ def test_wait_for_health_gives_up():
 
 
 def test_commands_dict_has_all_commands():
-    expected = {"setup", "update", "logs", "status", "stop", "check"}
+    expected = {"setup", "update", "logs", "status", "stop", "check", "test"}
     assert set(deploy.COMMANDS.keys()) == expected
+
+
+def test_find_free_port():
+    port = deploy.find_free_port(start=49152, end=49200)
+    assert 49152 <= port < 49200
+    # Port should actually be free
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        assert s.connect_ex(("127.0.0.1", port)) != 0
+
+
+def test_compose_test_builds_correct_command():
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        deploy.compose_test("ps", port=9200)
+        args = mock_run.call_args[0][0]
+        assert "docker" in args
+        assert "-p" in args
+        assert "classgen-test" in args
+        assert "docker-compose.test.yml" in str(args)
+        # APP_PORT should be in env
+        env = mock_run.call_args[1].get("env", {})
+        assert env.get("APP_PORT") == "9200"
+
+
+def test_wait_for_health_http_success():
+    """Test HTTP health polling with a mock server."""
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_urlopen.return_value = mock_resp
+        assert deploy.wait_for_health_http(9999, retries=1, delay=0) is True
+
+
+def test_wait_for_health_http_failure():
+    """Test HTTP health polling when server never comes up."""
+    import urllib.error
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
+        assert deploy.wait_for_health_http(9999, retries=2, delay=0) is False

@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""ClassGen production deployment tool.
+"""ClassGen deployment tool.
 
 Usage:
-    python deploy.py setup     # First-time deploy
+    python deploy.py setup     # First-time production deploy
     python deploy.py update    # Pull + rebuild + restart
     python deploy.py status    # Health + container status
     python deploy.py logs      # Tail logs (optional: logs app)
     python deploy.py stop      # Stop all services
     python deploy.py check     # Validate .env.prod without deploying
+    python deploy.py test      # Local deployment test (build + health check + teardown)
 """
 
+import os
 import sys
 import subprocess
 import time
@@ -18,6 +20,7 @@ from pathlib import Path
 DEPLOY_DIR = Path(__file__).parent.resolve()
 REPO_ROOT = DEPLOY_DIR.parent
 COMPOSE_FILE = DEPLOY_DIR / "docker-compose.prod.yml"
+COMPOSE_TEST_FILE = DEPLOY_DIR / "docker-compose.test.yml"
 ENV_FILE = DEPLOY_DIR / ".env.prod"
 ENV_EXAMPLE = DEPLOY_DIR / ".env.prod.example"
 
@@ -234,6 +237,116 @@ def cmd_stop():
     log("Stopped.")
 
 
+def find_free_port(start: int = 9100, end: int = 9200) -> int:
+    """Find an available port in the given range."""
+    import socket
+    for port in range(start, end):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("127.0.0.1", port)) != 0:
+                return port
+    raise RuntimeError(f"No free port found in {start}-{end}")
+
+
+def compose_test(*args: str, check: bool = True, capture: bool = False,
+                 port: int = 9100) -> subprocess.CompletedProcess:
+    """Run docker compose against the test compose file."""
+    cmd = ["docker", "compose",
+           "-f", str(COMPOSE_TEST_FILE),
+           "-p", "classgen-test",
+           *args]
+    env = {**os.environ, "APP_PORT": str(port)}
+    return subprocess.run(cmd, check=check, capture_output=capture, text=True, env=env)
+
+
+def wait_for_health_http(port: int, retries: int = 20, delay: float = 3.0) -> bool:
+    """Poll the health endpoint directly via HTTP (no docker exec)."""
+    import urllib.request
+    import urllib.error
+    for i in range(retries):
+        try:
+            resp = urllib.request.urlopen(f"http://localhost:{port}/health", timeout=3)
+            if resp.status == 200:
+                return True
+        except (urllib.error.URLError, OSError):
+            pass
+        if i < retries - 1:
+            time.sleep(delay)
+    return False
+
+
+def cmd_test():
+    """Local deployment test: build, start, health check, smoke test, teardown."""
+    port = find_free_port()
+    log(f"Testing deployment on port {port}...")
+
+    try:
+        # Build and start
+        log("Building app image...")
+        compose_test("build", port=port)
+
+        log("Starting services...")
+        compose_test("up", "-d", port=port)
+
+        # Wait for health
+        log("Waiting for app to be healthy...")
+        if not wait_for_health_http(port, retries=20, delay=3.0):
+            err("Health check failed after 60s.")
+            compose_test("logs", "--tail=30", port=port, check=False)
+            sys.exit(1)
+
+        log("App is healthy!")
+
+        # Smoke tests
+        import urllib.request
+        import json
+
+        # 1. Health endpoint
+        resp = urllib.request.urlopen(f"http://localhost:{port}/health")
+        data = json.loads(resp.read())
+        assert data["status"] == "ok", f"Health returned: {data}"
+        log("  /health .............. OK")
+
+        # 2. Home page
+        resp = urllib.request.urlopen(f"http://localhost:{port}/")
+        html = resp.read().decode()
+        assert "ClassGen" in html, "Home page missing ClassGen"
+        log("  / .................... OK")
+
+        # 3. VAPID key endpoint
+        resp = urllib.request.urlopen(f"http://localhost:{port}/api/vapid-key")
+        data = json.loads(resp.read())
+        assert "publicKey" in data, f"VAPID missing publicKey: {data}"
+        log("  /api/vapid-key ....... OK")
+
+        # 4. Homework 404
+        try:
+            urllib.request.urlopen(f"http://localhost:{port}/h/FAKE99")
+            assert False, "Should have returned 404"
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+        log("  /h/FAKE99 (404) ...... OK")
+
+        # 5. Chat API (LLM will fail but endpoint should respond)
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api/chat",
+            data=json.dumps({"message": "help", "thread_id": "test"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = urllib.request.urlopen(req)
+        data = json.loads(resp.read())
+        assert "reply" in data, f"Chat response missing reply: {data}"
+        log("  /api/chat ............ OK")
+
+        print()
+        log("All smoke tests passed!")
+
+    finally:
+        # Always clean up
+        log("Tearing down test containers...")
+        compose_test("down", "-v", "--remove-orphans", port=port, check=False)
+        log("Cleanup complete.")
+
+
 # --- CLI ---
 
 COMMANDS = {
@@ -243,6 +356,7 @@ COMMANDS = {
     "status": cmd_status,
     "stop": cmd_stop,
     "check": cmd_check,
+    "test": cmd_test,
 }
 
 

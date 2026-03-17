@@ -1,0 +1,32 @@
+# Local deployment test -- verifies the Docker build, app startup, and health.
+# No Caddy (no HTTPS needed locally), no Supabase (in-memory fallback).
+# Usage: docker compose -f docker-compose.test.yml up -d
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "${APP_PORT:-9100}:8000"
+    environment:
+      - OPENROUTER_API_KEY=test-not-real
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 5
+    command: redis-server --maxmemory 32mb --maxmemory-policy allkeys-lru

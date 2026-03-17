@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Local development stack for ClassGen
 # Usage: docker compose up -d
 # The app connects to Postgres via Supabase client (PostgREST).
