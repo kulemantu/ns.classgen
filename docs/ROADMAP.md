@@ -300,25 +300,26 @@ Changes:
 
 Goal: ClassGen becomes the tool a school subscribes to, not just individual teachers.
 
-#### 3.0a -- Curriculum Sequencing & Batch Generation
+#### 3.0a -- Curriculum Assist & Batch Generation
 
-Teachers already have classes. Map each class to a curriculum, then "next lesson" generates the right topic automatically.
+**The primary flow is always on-demand:** teacher sends any topic, gets a lesson. Curriculum data is an *assist* layer -- it helps teachers who want suggestions, not a rigid sequence they must follow.
 
-- [ ] Curriculum data: ordered topic lists per (exam_board, subject, class) -- start with WAEC SS1-SS3 core subjects
-- [ ] Teacher progress tracker: which topic each teacher last generated per class
-- [ ] "Next" command: `next` or `next SS2 Biology` → looks up the next topic in sequence → generates lesson
-- [ ] Batch generation: `generate week` → generates next N lessons across all teacher's classes via Redis queue
-- [ ] Combined week-pack PDF: all lessons for the week in a single downloadable document
+Reality: most teachers will not follow a strict curriculum order. They'll teach what they need tomorrow based on where their class is, exam proximity, or what a student struggled with. The system must never assume sequential progression.
+
+- [ ] Curriculum data: topic lists per (exam_board, subject, class) -- start with WAEC SS1-SS3 core subjects. Used for suggestions, not enforcement.
+- [ ] "Suggest" command: `suggest SS2 Biology` → shows a list of topics for that class from the curriculum. Teacher picks one or ignores it.
+- [ ] Topic history: track which topics a teacher has already generated per class (for "what haven't I covered yet" queries, not for forced sequencing)
+- [ ] Batch generation: `generate week` → teacher picks N topics from their classes → queued generation via Redis → combined PDF
+- [ ] Combined week-pack PDF: all selected lessons in a single downloadable document
 - [ ] Content cache: deduplicate LLM calls for identical (subject, topic, class, exam_board) tuples across teachers
-- [ ] Skip/repeat: teacher can skip a topic or re-generate the current one
 
 Technical:
-- New Supabase tables: `curriculum_topics` (exam_board, subject, class, position, topic), `teacher_progress` (teacher_phone, class, last_position)
-- `curriculum.py` -- topic lookup, next-topic resolution, curriculum data seeding
+- New Supabase tables: `curriculum_topics` (exam_board, subject, class, topic), `lesson_history` (teacher_phone, class, topic, created_at)
+- `curriculum.py` -- topic lookup, suggestion list, coverage tracking
 - Redis job queue for async batch generation (already in docker-compose)
 - Combined PDF generator (extend pdf_generator.py for multi-lesson packs)
 
-Note: timetable upload (scheduling *when* classes happen) is a school-admin concern for V3.0c, not needed here. The teacher's class list + curriculum sequence determines *what* to teach.
+Note: timetable upload (scheduling *when* classes happen) is a school-admin concern for V3.0c, not needed here.
 
 #### 3.0b -- Billing & Subscriptions
 
@@ -372,7 +373,7 @@ These modules cut across multiple phases. Building them right avoids rewriting l
 | Module | Purpose | Phase |
 |---|---|---|
 | `billing.py` | Payment abstraction -- provider-agnostic layer over Paystack (card/USSD) and bank transfer | 3.0b |
-| `curriculum.py` | Curriculum topic sequences -- (exam_board, subject, class) → ordered topics, next-topic resolution | 3.0a |
+| `curriculum.py` | Curriculum topic lists -- (exam_board, subject, class) → topic suggestions, coverage tracking (assist, not enforcement) | 3.0a |
 | `jobs.py` | Async job queue via Redis -- batch lesson generation, weekly parent digests | 3.0a |
 | `worksheet.py` | Layout-aware PDF generator -- game grids, fill-in-blanks, cut-out cards (separate from lesson PDFs) | 3.0c |
 | `storage.py` | File storage abstraction -- local static/ for dev, Supabase Storage/S3 for production | 3.0c |
