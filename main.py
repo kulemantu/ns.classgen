@@ -13,6 +13,7 @@ from db import (
     save_quiz_submission, get_quiz_results,
     get_teacher_by_slug,
     list_homework_codes_for_teacher,
+    log_lesson_generated, get_cached_lesson, cache_lesson,
 )
 from commands import handle_command
 from pdf_generator import generate_pdf_from_markdown
@@ -216,10 +217,29 @@ async def _generate_quiz_questions(lesson_content: str) -> list:
     return []
 
 
+def _parse_lesson_request(msg: str) -> tuple[str, str, str]:
+    """Best-effort parse of 'SS2 Biology: Photosynthesis' -> (class_level, subject, topic)."""
+    # Match patterns like "SS2 Biology: Photosynthesis" or "JSS3 Chemistry Acids"
+    m = re.match(r"(SS\d|JSS\d)\s+(\w+)[:\s]+(.+)", msg.strip(), re.IGNORECASE)
+    if m:
+        return m.group(1).upper(), m.group(2).strip(), m.group(3).strip()
+    return "", "", ""
+
+
 async def _generate_lesson(user_message: str, thread_id: str, limit: int = 10, teacher_phone: str = "") -> tuple[str, str | None, str | None]:
     """Shared logic: log input, call LLM, generate PDF + homework code, log output.
     Returns (reply, pdf_url, homework_code)."""
     log_session(thread_id, "user", user_message)
+
+    # Check content cache
+    class_level, subject, topic = _parse_lesson_request(user_message)
+    if class_level and subject and topic:
+        cached = get_cached_lesson(subject, topic, class_level)
+        if cached:
+            print(f"[cache hit] {class_level} {subject}: {topic}")
+            log_session(thread_id, "assistant", cached)
+            # Log to history and generate PDF/homework as normal
+            return await _finalize_lesson(cached, user_message, thread_id, teacher_phone, class_level, subject, topic)
 
     history = get_session_history(thread_id, limit=limit)
     history_context = "\n".join(
@@ -235,7 +255,17 @@ async def _generate_lesson(user_message: str, thread_id: str, limit: int = 10, t
 
     log_session(thread_id, "assistant", assistant_reply)
 
-    # Only generate PDF + homework code for actual lesson packs, not clarifying questions
+    # Cache if this was a parseable lesson request
+    if class_level and subject and topic and _has_lesson_blocks(assistant_reply):
+        cache_lesson(subject, topic, class_level, assistant_reply)
+
+    return await _finalize_lesson(assistant_reply, user_message, thread_id, teacher_phone, class_level, subject, topic)
+
+
+async def _finalize_lesson(assistant_reply: str, user_message: str, thread_id: str,
+                           teacher_phone: str, class_level: str, subject: str,
+                           topic: str) -> tuple[str, str | None, str | None]:
+    """Generate PDF, homework code, log history. Shared by cache-hit and fresh paths."""
     pdf_url = None
     homework_code = None
     if _has_lesson_blocks(assistant_reply):
@@ -246,7 +276,6 @@ async def _generate_lesson(user_message: str, thread_id: str, limit: int = 10, t
         except Exception as e:
             print(f"Error generating PDF: {e}")
 
-        # Generate homework code + quiz questions
         try:
             homework_code = generate_homework_code()
             homework_block = _extract_homework_block(assistant_reply)
@@ -255,6 +284,10 @@ async def _generate_lesson(user_message: str, thread_id: str, limit: int = 10, t
         except Exception as e:
             print(f"Error generating homework code: {e}")
             homework_code = None
+
+        # Log to lesson history for curriculum tracking
+        if teacher_phone and class_level and subject and topic:
+            log_lesson_generated(teacher_phone, subject, topic, class_level)
 
     return assistant_reply, pdf_url, homework_code
 

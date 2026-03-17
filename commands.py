@@ -11,9 +11,10 @@ from db import (
     save_teacher, get_teacher_by_phone, add_teacher_class,
     list_homework_codes_for_teacher, get_quiz_results,
     get_class_leaderboard, get_student_progress,
-    save_parent_subscription,
+    save_parent_subscription, get_covered_topics,
     log_session,
 )
+from curriculum import suggest_topics, parse_class_string, list_subjects
 
 
 @dataclass
@@ -77,6 +78,15 @@ def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None
         topic = re.sub(r"^study\s+", "", text, flags=re.IGNORECASE).strip()
         return _cmd_study_mode(topic)
 
+    # --- V3.0a: Curriculum assist ---
+    if lower.startswith("suggest ") or lower == "suggest":
+        class_name = re.sub(r"^suggest\s*", "", text, flags=re.IGNORECASE).strip()
+        return _cmd_suggest(phone, class_name)
+
+    if lower.startswith("covered "):
+        class_name = re.sub(r"^covered\s+", "", text, flags=re.IGNORECASE).strip()
+        return _cmd_covered(phone, class_name)
+
     # Not a command — fall through to LLM
     return None
 
@@ -110,6 +120,9 @@ def _cmd_help(base_url: str) -> CommandResult:
         "  progress [Name] [Class] -- student history\n\n"
         "*Parents*\n"
         "  subscribe parent [phone] [name] [class]\n\n"
+        "*Curriculum*\n"
+        "  suggest [class] -- topic suggestions\n"
+        "  covered [class] -- what you've taught\n\n"
         "*Other*\n"
         "  study [topic] -- quick recap\n"
         "  new -- start a fresh lesson\n"
@@ -276,3 +289,67 @@ def _cmd_study_mode(topic: str) -> CommandResult:
         session_action="study",
         new_thread_id=topic,  # pass the topic through
     )
+
+
+# --- V3.0a Commands ---
+
+def _cmd_suggest(phone: str, class_name: str) -> CommandResult:
+    """Suggest topics from curriculum for a class."""
+    teacher = get_teacher_by_phone(phone)
+    if not teacher:
+        return CommandResult(reply="Register first. Send: register [Your Name]")
+
+    # If no class specified, list teacher's classes
+    if not class_name:
+        classes = teacher.get("classes", [])
+        if not classes:
+            return CommandResult(reply="Add a class first. Send: add class: SS2 Biology")
+        subjects = list_subjects()
+        return CommandResult(
+            reply="*Which class?*\n\n" +
+                  "\n".join(f"  suggest {c}" for c in classes) +
+                  f"\n\nAvailable subjects: {', '.join(subjects)}"
+        )
+
+    exam_board, subject, class_level = parse_class_string(class_name)
+    if not subject:
+        return CommandResult(reply="Example: suggest SS2 Biology")
+
+    covered = get_covered_topics(phone, class_name)
+    uncovered, done = suggest_topics(exam_board, subject, class_level, covered)
+
+    if not uncovered and not done:
+        return CommandResult(
+            reply=f"No curriculum data found for {class_name}. "
+                  f"Available subjects: {', '.join(list_subjects())}"
+        )
+
+    lines = [f"*Topics for {class_level} {subject}*\n"]
+
+    if uncovered:
+        lines.append(f"_Not yet covered ({len(uncovered)})_:")
+        for i, t in enumerate(uncovered[:8], 1):
+            lines.append(f"  {i}. {t}")
+        if len(uncovered) > 8:
+            lines.append(f"  ... and {len(uncovered) - 8} more")
+
+    if done:
+        lines.append(f"\n_Already covered ({len(done)})_:")
+        for t in done[:5]:
+            lines.append(f"  - {t}")
+
+    lines.append("\nSend any topic to generate a lesson.")
+    return CommandResult(reply="\n".join(lines))
+
+
+def _cmd_covered(phone: str, class_name: str) -> CommandResult:
+    """Show topics a teacher has already generated."""
+    if not class_name:
+        return CommandResult(reply="Example: covered SS2 Biology")
+    covered = get_covered_topics(phone, class_name)
+    if not covered:
+        return CommandResult(reply=f"No lessons generated yet for *{class_name}*.")
+    lines = [f"*Topics covered for {class_name}* ({len(covered)}):\n"]
+    for t in covered:
+        lines.append(f"  - {t}")
+    return CommandResult(reply="\n".join(lines))

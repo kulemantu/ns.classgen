@@ -306,12 +306,12 @@ Goal: ClassGen becomes the tool a school subscribes to, not just individual teac
 
 Reality: most teachers will not follow a strict curriculum order. They'll teach what they need tomorrow based on where their class is, exam proximity, or what a student struggled with. The system must never assume sequential progression.
 
-- [ ] Curriculum data: topic lists per (exam_board, subject, class) -- start with WAEC SS1-SS3 core subjects. Used for suggestions, not enforcement.
-- [ ] "Suggest" command: `suggest SS2 Biology` → shows a list of topics for that class from the curriculum. Teacher picks one or ignores it.
-- [ ] Topic history: track which topics a teacher has already generated per class (for "what haven't I covered yet" queries, not for forced sequencing)
+- [x] Curriculum data: WAEC SS1-SS3 topic lists for Biology, Mathematics, Chemistry, Physics, English (`curriculum.py`)
+- [x] "Suggest" command: `suggest SS2 Biology` → shows uncovered/covered topics. `suggest` with no class lists teacher's classes.
+- [x] Topic history: `covered SS2 Biology` → shows what the teacher has already generated. Logged automatically on lesson generation.
+- [x] Content cache: deduplicate LLM calls for identical (subject, topic, class, exam_board) tuples across teachers. Cache hit skips LLM.
 - [ ] Batch generation: `generate week` → teacher picks N topics from their classes → queued generation via Redis → combined PDF
 - [ ] Combined week-pack PDF: all selected lessons in a single downloadable document
-- [ ] Content cache: deduplicate LLM calls for identical (subject, topic, class, exam_board) tuples across teachers
 
 Technical:
 - New Supabase tables: `curriculum_topics` (exam_board, subject, class, topic), `lesson_history` (teacher_phone, class, topic, created_at)

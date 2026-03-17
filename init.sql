@@ -37,6 +37,26 @@ CREATE TABLE IF NOT EXISTS quiz_submissions (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS lesson_history (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  teacher_phone text NOT NULL REFERENCES teachers(phone),
+  subject text NOT NULL,
+  topic text NOT NULL,
+  class_level text NOT NULL,
+  exam_board text NOT NULL DEFAULT 'WAEC',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS lesson_cache (
+  cache_key text PRIMARY KEY,
+  subject text NOT NULL,
+  topic text NOT NULL,
+  class_level text NOT NULL,
+  exam_board text NOT NULL DEFAULT 'WAEC',
+  content text NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS parent_subscriptions (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   parent_phone text NOT NULL,
