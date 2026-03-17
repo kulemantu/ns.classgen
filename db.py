@@ -30,8 +30,21 @@ _mem_submissions: dict[str, list] = {}
 _mem_teachers: dict[str, dict] = {}  # keyed by phone number
 _mem_lesson_history: list[dict] = []
 _mem_content_cache: dict[str, str] = {}  # cache_key -> lesson content
+_mem_active_threads: dict[str, str] = {}  # phone -> active thread_id
 
 HOMEWORK_CODE_TTL_DAYS = 14
+
+
+# --- Active Thread (for session reset) ---
+
+def set_active_thread(phone: str, thread_id: str):
+    """Set the active thread_id for a phone number (used by session reset)."""
+    _mem_active_threads[phone] = thread_id
+
+
+def get_active_thread(phone: str) -> str:
+    """Get the active thread_id for a phone. Defaults to the phone number itself."""
+    return _mem_active_threads.get(phone, phone)
 
 
 # --- Sessions ---
@@ -214,7 +227,8 @@ def _unique_slug(slug: str, phone: str) -> str:
     return f"{slug}-{suffix}"
 
 
-def save_teacher(phone: str, name: str, school: str = "") -> dict:
+def save_teacher(phone: str, name: str, school: str = "",
+                 school_slug: str = "") -> dict:
     """Register or update a teacher. Returns the teacher record."""
     slug = _unique_slug(_make_slug(name), phone)
     record = {
@@ -222,6 +236,7 @@ def save_teacher(phone: str, name: str, school: str = "") -> dict:
         "name": name,
         "slug": slug,
         "school": school,
+        "school_slug": school_slug,
         "classes": [],
         "created_at": datetime.now(timezone.utc).isoformat(),
     }

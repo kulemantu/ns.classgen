@@ -14,6 +14,7 @@ from db import (
     get_teacher_by_slug, list_homework_codes_for_teacher,
     log_lesson_generated, get_cached_lesson, cache_lesson,
     get_school, get_school_teachers,
+    get_active_thread,
 )
 from commands import handle_command
 from billing import check_usage, log_usage
@@ -234,19 +235,21 @@ def _parse_lesson_request(msg: str) -> tuple[str, str, str]:
 async def _generate_lesson(user_message: str, thread_id: str, limit: int = 10, teacher_phone: str = "") -> tuple[str, str | None, str | None]:
     """Shared logic: log input, call LLM, generate PDF + homework code, log output.
     Returns (reply, pdf_url, homework_code)."""
-    log_session(thread_id, "user", user_message)
 
-    # Check content cache
+    # Check content cache before spending LLM tokens
     class_level, subject, topic = _parse_lesson_request(user_message)
     if class_level and subject and topic:
         cached = get_cached_lesson(subject, topic, class_level)
         if cached:
             print(f"[cache hit] {class_level} {subject}: {topic}")
+            log_session(thread_id, "user", user_message)
             log_session(thread_id, "assistant", cached)
-            # Log to history and generate PDF/homework as normal
             return await _finalize_lesson(cached, user_message, thread_id, teacher_phone, class_level, subject, topic)
 
+    # Fetch history BEFORE logging the new message (avoids duplicate in LLM context)
     history = get_session_history(thread_id, limit=limit)
+    log_session(thread_id, "user", user_message)
+
     history_context = "\n".join(
         [f"{msg['role']}: {msg['content']}" for msg in history]
     ) if history else "No previous context."
@@ -421,7 +424,7 @@ async def twilio_webhook(request: Request):
         twiml_response.message(usage.message)
         return Response(content=str(twiml_response), media_type="application/xml")
 
-    thread_id = phone
+    thread_id = get_active_thread(phone)
     ai_response_text, pdf_url, homework_code = await _generate_lesson(body, thread_id, teacher_phone=phone)
     if _has_lesson_blocks(ai_response_text):
         log_usage(phone, "lesson")
@@ -497,7 +500,7 @@ class QuizSubmission(BaseModel):
 
 
 @app.post("/h/{code}/submit")
-async def submit_quiz(code: str, submission: QuizSubmission):
+async def submit_quiz(request: Request, code: str, submission: QuizSubmission):
     """Grade and store a student's quiz submission."""
     hw = get_homework_code(code.upper())
     if not hw:
@@ -529,7 +532,8 @@ async def submit_quiz(code: str, submission: QuizSubmission):
     # Notify teacher via push notification
     teacher_id = hw.get("teacher_phone") or hw.get("thread_id", "")
     if teacher_id:
-        notify_quiz_submission(teacher_id, code.upper(), submission.student_name, score, total)
+        base_url = f"{request.url.scheme}://{request.url.netloc}"
+        notify_quiz_submission(teacher_id, code.upper(), submission.student_name, score, total, base_url)
 
     return {
         "score": score,

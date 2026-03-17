@@ -12,7 +12,7 @@ from db import (
     list_homework_codes_for_teacher, get_quiz_results,
     get_class_leaderboard, get_student_progress,
     save_parent_subscription, get_covered_topics,
-    log_session,
+    log_session, set_active_thread,
 )
 from curriculum import suggest_topics, parse_class_string, list_subjects
 
@@ -88,6 +88,13 @@ def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None
         args = re.sub(r"^subscribe parent\s*", "", text, flags=re.IGNORECASE).strip()
         return _cmd_subscribe_parent(phone, args)
 
+    if lower.startswith("confirm "):
+        ref = re.sub(r"^confirm\s+", "", text, flags=re.IGNORECASE).strip()
+        return CommandResult(
+            reply=f"Payment reference *{ref}* noted. "
+                  "Our team will verify and activate your subscription within 24 hours."
+        )
+
     if lower.startswith("study "):
         topic = re.sub(r"^study\s+", "", text, flags=re.IGNORECASE).strip()
         return _cmd_study_mode(topic)
@@ -110,6 +117,7 @@ def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None
 def _cmd_reset(phone: str) -> CommandResult:
     import time
     new_id = f"{phone}_{int(time.time())}"
+    set_active_thread(phone, new_id)
     log_session(new_id, "system", "Session reset by teacher.")
     return CommandResult(
         reply="Starting fresh! What subject and topic would you like a lesson on?",

@@ -39,7 +39,10 @@ SAMPLE_QUIZ = [
 @patch("main.get_session_history")
 @patch("main.generate_pdf_from_markdown")
 @patch("main.handle_command", return_value=None)
-def test_twilio_webhook_text_input(mock_cmd, mock_generate_pdf, mock_get_history, mock_log, mock_call_openrouter, mock_gen_code, mock_save_code):
+@patch("main.log_usage")
+@patch("main.check_usage")
+def test_twilio_webhook_text_input(mock_check, mock_log_usage, mock_cmd, mock_generate_pdf, mock_get_history, mock_log, mock_call_openrouter, mock_gen_code, mock_save_code):
+    mock_check.return_value = type("U", (), {"allowed": True, "remaining": 5, "tier": "free", "message": ""})()
     mock_get_history.return_value = []
     # First call returns lesson, second returns quiz JSON
     mock_call_openrouter.side_effect = [SAMPLE_LESSON_RESPONSE, '[{"question":"Q1","options":["A","B","C","D"],"correct":0}]']
@@ -69,7 +72,10 @@ def test_twilio_webhook_text_input(mock_cmd, mock_generate_pdf, mock_get_history
 @patch("main.log_session")
 @patch("main.get_session_history")
 @patch("main.handle_command", return_value=None)
-def test_twilio_webhook_clarifying_question_no_pdf(mock_cmd, mock_get_history, mock_log, mock_call_openrouter):
+@patch("main.log_usage")
+@patch("main.check_usage")
+def test_twilio_webhook_clarifying_question_no_pdf(mock_check, mock_log_usage, mock_cmd, mock_get_history, mock_log, mock_call_openrouter):
+    mock_check.return_value = type("U", (), {"allowed": True, "remaining": 5, "tier": "free", "message": ""})()
     """Clarifying questions should NOT generate a PDF or homework code."""
     mock_get_history.return_value = []
     mock_call_openrouter.return_value = "What grade level are we working with?\nSUGGESTIONS: [SS1] | [SS2] | [SS3]"

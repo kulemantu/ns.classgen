@@ -9,7 +9,7 @@ Usage is tracked before billing -- teachers see value before hitting the paywall
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from db import supabase
 
 # --- Subscription tiers ---
@@ -54,9 +54,8 @@ def log_usage(teacher_phone: str, action: str = "lesson"):
 def get_weekly_usage(teacher_phone: str) -> int:
     """Count lessons generated this week."""
     now = datetime.now(timezone.utc)
-    # Monday of this week
-    week_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = week_start.replace(day=now.day - now.weekday())
+    # Monday of this week (safe across month boundaries)
+    week_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=now.weekday())
     week_start_iso = week_start.isoformat()
 
     if not supabase:
