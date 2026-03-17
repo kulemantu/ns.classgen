@@ -68,7 +68,7 @@ Run the schema migration on your Supabase project:
 ### 4. Deploy
 
 ```bash
-./deploy.sh setup
+python deploy.py setup
 ```
 
 This builds the app, starts Caddy + Redis, and verifies health.
@@ -83,7 +83,7 @@ In Twilio Console → WhatsApp Sandbox (or your number):
 
 ```bash
 cd classgen/deploy
-./deploy.sh update
+python deploy.py update
 ```
 
 This pulls the latest code, rebuilds, and restarts with zero-downtime.
@@ -92,17 +92,17 @@ This pulls the latest code, rebuilds, and restarts with zero-downtime.
 
 ```bash
 # View logs (all services)
-./deploy.sh logs
+python deploy.py logs
 
 # View logs (specific service)
-./deploy.sh logs app
-./deploy.sh logs caddy
+python deploy.py logs app
+python deploy.py logs caddy
 
 # Check health
-./deploy.sh status
+python deploy.py status
 
 # Stop everything
-./deploy.sh stop
+python deploy.py stop
 ```
 
 ## SSL
