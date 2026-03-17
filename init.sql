@@ -80,6 +80,13 @@ CREATE TABLE IF NOT EXISTS usage_log (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint text PRIMARY KEY,
+  teacher_id text NOT NULL,
+  subscription jsonb NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS parent_subscriptions (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   parent_phone text NOT NULL,

@@ -17,6 +17,7 @@ from db import (
 )
 from commands import handle_command
 from billing import check_usage, log_usage
+from notifications import save_push_subscription, notify_quiz_submission
 from pdf_generator import generate_pdf_from_markdown
 import json
 import os
@@ -308,6 +309,28 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/api/vapid-key")
+async def vapid_key():
+    """Return the VAPID public key for push subscription."""
+    from notifications import VAPID_PUBLIC_KEY
+    return {"publicKey": VAPID_PUBLIC_KEY}
+
+
+class PushSubscription(BaseModel):
+    endpoint: str
+    keys: dict
+    teacher_id: str = ""  # thread_id or phone
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(sub: PushSubscription):
+    """Register a push notification subscription."""
+    subscription = {"endpoint": sub.endpoint, "keys": sub.keys}
+    teacher_id = sub.teacher_id or sub.endpoint[:40]
+    save_push_subscription(teacher_id, subscription)
+    return {"ok": True}
+
+
 def _whatsapp_summary(lesson_text: str, homework_code: str | None, base_url: str) -> str:
     """Create a WhatsApp-friendly summary (under 1500 chars) from a full lesson pack."""
     titles = re.findall(
@@ -502,6 +525,11 @@ async def submit_quiz(code: str, submission: QuizSubmission):
         })
 
     save_quiz_submission(code.upper(), submission.student_name, submission.student_class, submission.answers, score, total)
+
+    # Notify teacher via push notification
+    teacher_id = hw.get("teacher_phone") or hw.get("thread_id", "")
+    if teacher_id:
+        notify_quiz_submission(teacher_id, code.upper(), submission.student_name, score, total)
 
     return {
         "score": score,

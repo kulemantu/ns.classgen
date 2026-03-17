@@ -312,6 +312,11 @@
 
     <div id="breadcrumb-header"></div>
 
+    <button id="notify-btn" onclick="enableNotifications()" style="display:none;position:fixed;top:14px;right:16px;z-index:25;background:rgba(79,70,229,0.3);border:1px solid rgba(79,70,229,0.6);color:#c7d2fe;border-radius:999px;padding:6px 14px;font-size:0.8rem;cursor:pointer;backdrop-filter:blur(4px)">
+        <svg xmlns="http://www.w3.org/2000/svg" style="display:inline;vertical-align:middle;width:14px;height:14px;margin-right:4px" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+        Enable notifications
+    </button>
+
     <div id="chat-feed">
         <div class="message-bubble bubble-ai">
             <div class="font-semibold text-indigo-400 mb-1 text-sm tracking-wide uppercase">ClassGen AI</div>
@@ -588,7 +593,76 @@
             inputField.focus();
         }
 
-        window.onload = () => inputField.focus();
+        // --- Push Notifications ---
+        let swRegistration = null;
+
+        async function initServiceWorker() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+            try {
+                swRegistration = await navigator.serviceWorker.register('/static/sw.js');
+                // Show bell if not already subscribed
+                const sub = await swRegistration.pushManager.getSubscription();
+                if (!sub) {
+                    document.getElementById('notify-btn').style.display = 'block';
+                }
+            } catch (e) {
+                console.log('SW registration failed:', e);
+            }
+        }
+
+        async function enableNotifications() {
+            if (!swRegistration) return;
+            const btn = document.getElementById('notify-btn');
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    btn.textContent = 'Notifications blocked';
+                    btn.disabled = true;
+                    return;
+                }
+                // Get VAPID key
+                const keyResp = await fetch('/api/vapid-key');
+                const keyData = await keyResp.json();
+                if (!keyData.publicKey) {
+                    btn.style.display = 'none';
+                    return;
+                }
+                // Subscribe
+                const sub = await swRegistration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(keyData.publicKey),
+                });
+                // Send subscription to server
+                const subJson = sub.toJSON();
+                await fetch('/api/push/subscribe', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        endpoint: subJson.endpoint,
+                        keys: subJson.keys,
+                        teacher_id: threadId,
+                    }),
+                });
+                btn.style.display = 'none';
+            } catch (e) {
+                console.error('Push subscription failed:', e);
+                btn.textContent = 'Error enabling';
+            }
+        }
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const raw = window.atob(base64);
+            const arr = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+            return arr;
+        }
+
+        window.onload = () => {
+            inputField.focus();
+            initServiceWorker();
+        };
     </script>
 </body>
 </html>
