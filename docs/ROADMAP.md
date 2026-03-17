@@ -300,22 +300,25 @@ Changes:
 
 Goal: ClassGen becomes the tool a school subscribes to, not just individual teachers.
 
-#### 3.0a -- Timetable & Batch Generation
+#### 3.0a -- Curriculum Sequencing & Batch Generation
 
-A teacher uploads their timetable. ClassGen generates a full week of lessons in one go.
+Teachers already have classes. Map each class to a curriculum, then "next lesson" generates the right topic automatically.
 
-- [ ] Timetable input via WhatsApp text (structured format: `Monday 8am SS2 Biology: Cell Division`)
-- [ ] Timetable image upload via WhatsApp → OCR parsing (stretch goal)
-- [ ] Batch lesson generation: parse timetable → queue N lesson jobs → generate asynchronously via Redis
+- [ ] Curriculum data: ordered topic lists per (exam_board, subject, class) -- start with WAEC SS1-SS3 core subjects
+- [ ] Teacher progress tracker: which topic each teacher last generated per class
+- [ ] "Next" command: `next` or `next SS2 Biology` → looks up the next topic in sequence → generates lesson
+- [ ] Batch generation: `generate week` → generates next N lessons across all teacher's classes via Redis queue
 - [ ] Combined week-pack PDF: all lessons for the week in a single downloadable document
-- [ ] Curriculum sequencing: given (subject, class, exam_board, last_topic), suggest the next topic automatically
 - [ ] Content cache: deduplicate LLM calls for identical (subject, topic, class, exam_board) tuples across teachers
+- [ ] Skip/repeat: teacher can skip a topic or re-generate the current one
 
 Technical:
+- New Supabase tables: `curriculum_topics` (exam_board, subject, class, position, topic), `teacher_progress` (teacher_phone, class, last_position)
+- `curriculum.py` -- topic lookup, next-topic resolution, curriculum data seeding
 - Redis job queue for async batch generation (already in docker-compose)
-- New Supabase tables: `timetable_entries`, `lesson_cache`
-- Timetable parser module: text → structured entries
 - Combined PDF generator (extend pdf_generator.py for multi-lesson packs)
+
+Note: timetable upload (scheduling *when* classes happen) is a school-admin concern for V3.0c, not needed here. The teacher's class list + curriculum sequence determines *what* to teach.
 
 #### 3.0b -- Billing & Subscriptions
 
@@ -369,8 +372,7 @@ These modules cut across multiple phases. Building them right avoids rewriting l
 | Module | Purpose | Phase |
 |---|---|---|
 | `billing.py` | Payment abstraction -- provider-agnostic layer over Paystack (card/USSD) and bank transfer | 3.0b |
-| `timetable.py` | Timetable parser -- text/image → structured entries → batch generation queue | 3.0a |
-| `curriculum.py` | Curriculum graph -- (exam_board, subject, class) → ordered topic list with next-topic suggestions | 3.0a |
+| `curriculum.py` | Curriculum topic sequences -- (exam_board, subject, class) → ordered topics, next-topic resolution | 3.0a |
 | `jobs.py` | Async job queue via Redis -- batch lesson generation, weekly parent digests | 3.0a |
 | `worksheet.py` | Layout-aware PDF generator -- game grids, fill-in-blanks, cut-out cards (separate from lesson PDFs) | 3.0c |
 | `storage.py` | File storage abstraction -- local static/ for dev, Supabase Storage/S3 for production | 3.0c |
