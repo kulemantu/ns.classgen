@@ -300,88 +300,80 @@ Changes:
 
 Goal: ClassGen becomes the tool a school subscribes to, not just individual teachers.
 
-Changes:
-- [ ] Curriculum mapping by country and exam board
-- [ ] School admin dashboard (which teachers are active, lesson coverage)
-- [ ] Paystack integration for premium features
-- [ ] Printable worksheet generator (formatted PDFs with game boards, fill-in stories)
-- [ ] Theme customization (school branding on PDFs and profile pages)
+#### 3.0a -- Timetable & Batch Generation
+
+A teacher uploads their timetable. ClassGen generates a full week of lessons in one go.
+
+- [ ] Timetable input via WhatsApp text (structured format: `Monday 8am SS2 Biology: Cell Division`)
+- [ ] Timetable image upload via WhatsApp → OCR parsing (stretch goal)
+- [ ] Batch lesson generation: parse timetable → queue N lesson jobs → generate asynchronously via Redis
+- [ ] Combined week-pack PDF: all lessons for the week in a single downloadable document
+- [ ] Curriculum sequencing: given (subject, class, exam_board, last_topic), suggest the next topic automatically
+- [ ] Content cache: deduplicate LLM calls for identical (subject, topic, class, exam_board) tuples across teachers
+
+Technical:
+- Redis job queue for async batch generation (already in docker-compose)
+- New Supabase tables: `timetable_entries`, `lesson_cache`
+- Timetable parser module: text → structured entries
+- Combined PDF generator (extend pdf_generator.py for multi-lesson packs)
+
+#### 3.0b -- Billing & Subscriptions
+
+Payment must work for teachers who have Paystack (cards) AND teachers who don't (bank transfer, USSD).
+
+- [ ] Payment abstraction layer (`billing.py`) -- provider-agnostic, not Paystack-specific
+- [ ] Paystack provider: card payments, USSD channel, bank transfer verification
+- [ ] Bank config provider: manual transfer + reference code verification (for schools that pay by bank)
+- [ ] Subscription tiers: Free (5 lessons/week), Premium (unlimited), School (per-seat)
+- [ ] Usage tracking: lessons generated, quizzes created, students active -- visible to teacher before paywall
+- [ ] School-level billing: admin pays for all teachers in the school
+
+Technical:
+- New Supabase tables: `subscriptions`, `usage_log`, `payments`
+- Paystack webhook for payment confirmation
+- Usage middleware: check quota before LLM call, return friendly limit message
+- Billing can be school-level (one subscription, N teacher seats) or teacher-level
+
+#### 3.0c -- School Admin & Worksheets
+
+- [ ] School admin dashboard: which teachers are active, lesson coverage across classes, student engagement stats
+- [ ] Printable worksheet generator: layout-aware PDFs with game board grids, fill-in-the-blank lines, cut-out cards, answer keys
+- [ ] Theme customization: school logo/name on PDFs and profile pages
+- [ ] File storage migration: move generated PDFs from local `static/` to Supabase Storage or S3 (term-scale durability)
+- [ ] Data export: CSV/PDF export of student scores, lesson history for school reporting
+
+#### 3.0d -- Multi-language
+
 - [ ] Multi-language support (French, Yoruba, Hausa, Swahili, etc.)
+- [ ] Language detection from teacher input or explicit setting
+- [ ] Bilingual lesson packs (English + local language) for classes that use both
 
 ---
 
 ## Shared Technical Modules
 
-These modules cut across multiple phases. Building them right the first time avoids rewriting later.
+These modules cut across multiple phases. Building them right avoids rewriting later.
 
-### 1. WhatsApp Command Router (`commands.py`)
+### Built (V2.0)
 
-**Used by:** V1.3 (session reset), V2.0 (profile commands), V2.1 (parent opt-in, study mode)
+| Module | Purpose | Status |
+|---|---|---|
+| `commands.py` | WhatsApp command router -- matches text, falls through to LLM | DONE. 12 commands: help, register, my page, add class, my codes, results, leaderboard, progress, subscribe parent, study, new, reset |
+| `db.py` | Data access layer -- Supabase + in-memory fallback, `save/get/list` patterns | DONE. Tables: sessions, teachers, homework_codes, quiz_submissions, parent_subscriptions |
+| `utils.py` | OpenRouter LLM client + homework code generator (slimmed from original) | DONE |
+| `templates/` | Jinja2 shared base template + page templates | DONE. base.html, profile.html |
+| `messaging.py` | Outbound Twilio WhatsApp messaging (proactive messages) | DONE. send_whatsapp, send_quiz_summary, send_parent_digest |
 
-Currently the webhook handler has inline `if body.strip().lower() in (...)` checks. As commands grow, this becomes unmanageable. Extract a command router that:
-- Matches incoming text against registered commands (exact match, prefix, regex)
-- Falls through to the LLM lesson generator if no command matches
-- Returns a structured response (text reply, optional media, optional session side-effects)
+### Needed for V3.0
 
-```
-V1.3:  "new", "reset", "new lesson", "start over"
-V2.0:  "register", "my page", "my results CODE", "add class: SS2 Biology", "hide lesson"
-V2.1:  "subscribe parent +234...", "study TOPIC"
-```
-
-### 2. Data Access Layer (`db.py`)
-
-**Used by:** every phase
-
-Currently `utils.py` mixes OpenRouter client, Supabase client, session ops, homework ops, and quiz ops in one file. As we add `teachers`, `classes`, `lessons` tables (V2.0), `parent_subscriptions` (V2.1), and `schools` (V3.0), this file will explode.
-
-Split into:
-- `db.py` -- Supabase/Postgres client init, in-memory fallback dict, shared helpers
-- `utils.py` -- OpenRouter client only (renamed or kept slim)
-
-All table operations go through `db.py` with consistent patterns:
-- `save_X()`, `get_X()`, `list_X()`, `delete_X()`
-- Every function handles both Supabase and in-memory paths
-- Timestamps always UTC ISO format
-
-### 3. Teacher Identity (`db.py` teacher ops)
-
-**Used by:** V2.0 (registration, profiles), V2.1 (parent links, progress), V3.0 (school admin)
-
-The teacher's phone number is already the session key. V2.0 formalises this into a `teachers` table. Design it once:
-- Phone number is the unique identifier (not an auto-generated ID)
-- Slug derived from display name (for profile URL)
-- Every lesson and homework code links back to the teacher
-- Session history links to the teacher
-- This is the join point for all downstream features (parents, schools, billing)
-
-### 4. Lightweight Page Templates (`templates/`)
-
-**Used by:** V1.2 (homework, results), V2.0 (teacher profile), V2.1 (student progress), V3.0 (admin dashboard)
-
-Currently 3 standalone HTML files with duplicated CSS (same card styles, same font stack, same color scheme). V2.0 adds a teacher profile page, V3.0 adds an admin dashboard.
-
-Strategy: **Jinja2 templates with a shared base.** FastAPI supports Jinja2 natively. One `base.html` with the shared `<head>`, styles, and layout. Each page extends it. This keeps pages lightweight (no JS framework) while avoiding copy-paste drift.
-
-```
-templates/
-  base.html          -- shared head, styles, responsive layout
-  homework.html      -- student quiz page (extends base)
-  results.html       -- teacher results dashboard (extends base)
-  profile.html       -- teacher public profile (V2.0)
-  admin.html         -- school admin dashboard (V3.0)
-```
-
-### 5. Outbound Messaging (`messaging.py`)
-
-**Used by:** V2.0 (profile URL reply, results summary), V2.1 (parent digest), V3.0 (school notifications)
-
-Currently Twilio is only used for inbound webhook responses (TwiML). Outbound messaging (sending a message proactively) requires the Twilio REST API client. This is needed for:
-- Sending quiz results summaries to teachers after students submit
-- Weekly parent digests
-- School admin notifications
-
-One module, one Twilio client, consistent message formatting.
+| Module | Purpose | Phase |
+|---|---|---|
+| `billing.py` | Payment abstraction -- provider-agnostic layer over Paystack (card/USSD) and bank transfer | 3.0b |
+| `timetable.py` | Timetable parser -- text/image → structured entries → batch generation queue | 3.0a |
+| `curriculum.py` | Curriculum graph -- (exam_board, subject, class) → ordered topic list with next-topic suggestions | 3.0a |
+| `jobs.py` | Async job queue via Redis -- batch lesson generation, weekly parent digests | 3.0a |
+| `worksheet.py` | Layout-aware PDF generator -- game grids, fill-in-blanks, cut-out cards (separate from lesson PDFs) | 3.0c |
+| `storage.py` | File storage abstraction -- local static/ for dev, Supabase Storage/S3 for production | 3.0c |
 
 ---
 
