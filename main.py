@@ -427,9 +427,14 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/api/chat")
-async def local_chat_endpoint(request: ChatRequest):
-    """Local JSON endpoint for the web UI. Bypasses Twilio."""
-    assistant_reply, pdf_url, homework_code = await _generate_lesson(request.message, request.thread_id)
+async def local_chat_endpoint(req: ChatRequest):
+    """Local JSON endpoint for the web UI."""
+    # Handle greetings and help on web too (no phone, use thread_id as identity)
+    cmd_result = handle_command(req.message, req.thread_id, "")
+    if cmd_result and cmd_result.session_action != "study":
+        return {"reply": cmd_result.reply, "pdf_url": None, "homework_code": None}
+
+    assistant_reply, pdf_url, homework_code = await _generate_lesson(req.message, req.thread_id)
 
     return {
         "reply": assistant_reply,

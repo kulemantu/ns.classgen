@@ -204,9 +204,19 @@ def _make_slug(name: str) -> str:
     return slug or "teacher"
 
 
+def _unique_slug(slug: str, phone: str) -> str:
+    """Ensure slug is unique by appending digits if needed."""
+    existing = get_teacher_by_slug(slug)
+    if not existing or existing.get("phone") == phone:
+        return slug
+    # Collision — append last 4 digits of phone
+    suffix = phone[-4:].replace("+", "")
+    return f"{slug}-{suffix}"
+
+
 def save_teacher(phone: str, name: str, school: str = "") -> dict:
     """Register or update a teacher. Returns the teacher record."""
-    slug = _make_slug(name)
+    slug = _unique_slug(_make_slug(name), phone)
     record = {
         "phone": phone,
         "name": name,

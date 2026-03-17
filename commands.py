@@ -29,6 +29,14 @@ def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None
     text = body.strip()
     lower = text.lower()
 
+    # --- Greetings (don't waste LLM tokens) ---
+    if lower in ("hi", "hello", "hey", "good morning", "good afternoon", "good evening"):
+        return CommandResult(
+            reply='Welcome to ClassGen! Send a topic to generate a lesson '
+                  '-- e.g. "SS2 Biology: Photosynthesis"\n\n'
+                  'Send "help" for all commands.'
+        )
+
     # --- Session commands ---
     if lower in ("new", "reset", "new lesson", "start over"):
         return _cmd_reset(phone)
@@ -52,6 +60,9 @@ def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None
         return _cmd_add_class(phone, class_name)
 
     # --- Results commands ---
+    if lower in ("results", "my results"):
+        return CommandResult(reply="Send: results CODE\n\nExample: results MATH42\n\nOr send 'my codes' to see your homework codes.")
+
     if lower.startswith("results ") or lower.startswith("my results "):
         code = re.sub(r"^(my )?results\s+", "", text, flags=re.IGNORECASE).strip().upper()
         return _cmd_results(phone, code, base_url)
@@ -60,6 +71,9 @@ def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None
         return _cmd_my_codes(phone, base_url)
 
     # --- V2.1: Leaderboard, progress, parent, study ---
+    if lower in ("leaderboard", "top"):
+        return CommandResult(reply="Send: leaderboard CODE\n\nExample: leaderboard MATH42")
+
     if lower.startswith("leaderboard ") or lower.startswith("top "):
         code = re.sub(r"^(leaderboard|top)\s+", "", text, flags=re.IGNORECASE).strip().upper()
         return _cmd_leaderboard(code)
