@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClassGen — AI Lesson Packs for African Classrooms</title>
+<meta name="description" content="Generate ready-to-teach lesson packs via WhatsApp. Designed for Nigerian secondary school teachers with 30-60 students, exercise books, and a chalkboard.">
+<style>
+:root{--brand:#4f46e5;--brand-light:#ede9fe;--dark:#0f172a;--text:#1e293b;--muted:#64748b;--bg:#f8fafc;--card:#ffffff;--radius:16px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,system-ui,'Segoe UI',sans-serif;color:var(--text);line-height:1.6;background:var(--bg)}
+a{color:var(--brand);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Hero */
+.hero{background:linear-gradient(135deg,var(--dark) 0%,#1e1b4b 50%,#172554 100%);color:#fff;padding:4rem 1.5rem 3rem;text-align:center}
+.hero h1{font-size:clamp(2rem,5vw,3.5rem);font-weight:800;margin-bottom:.5rem;letter-spacing:-.02em}
+.hero .tagline{font-size:clamp(1rem,2.5vw,1.4rem);color:#c7d2fe;max-width:600px;margin:0 auto 2rem}
+.hero .cta{display:inline-block;background:#fff;color:var(--brand);font-weight:700;padding:.8rem 2rem;border-radius:999px;font-size:1.1rem;transition:transform .2s}
+.hero .cta:hover{transform:translateY(-2px);text-decoration:none}
+.hero .cta-secondary{display:inline-block;color:#c7d2fe;border:1px solid rgba(255,255,255,.3);padding:.7rem 1.8rem;border-radius:999px;font-size:1rem;margin-left:.75rem}
+.hero .cta-secondary:hover{background:rgba(255,255,255,.1);text-decoration:none}
+
+/* Sections */
+section{padding:4rem 1.5rem;max-width:900px;margin:0 auto}
+.section-label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--brand);margin-bottom:.5rem}
+section h2{font-size:1.8rem;font-weight:700;margin-bottom:1rem;color:var(--dark)}
+section p.lead{font-size:1.1rem;color:var(--muted);margin-bottom:2rem;max-width:650px}
+
+/* How it works */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem;margin-top:1.5rem}
+.step{background:var(--card);border-radius:var(--radius);padding:1.5rem;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.step .num{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;background:var(--brand-light);color:var(--brand);border-radius:50%;font-weight:700;font-size:.9rem;margin-bottom:.75rem}
+.step h3{font-size:1rem;font-weight:600;margin-bottom:.4rem}
+.step p{font-size:.9rem;color:var(--muted)}
+
+/* Features */
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem}
+.feature{background:var(--card);border-radius:var(--radius);padding:1.5rem;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.feature .icon{font-size:1.5rem;margin-bottom:.5rem}
+.feature h3{font-size:1rem;font-weight:600;margin-bottom:.3rem}
+.feature p{font-size:.85rem;color:var(--muted)}
+
+/* Lesson preview */
+.preview{background:var(--dark);border-radius:var(--radius);padding:1.5rem;color:#e2e8f0;font-size:.85rem;margin:2rem 0;overflow-x:auto}
+.preview .block{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:1rem;margin-bottom:.75rem}
+.preview .block-title{color:#a5b4fc;font-weight:600;font-size:.95rem;margin-bottom:.3rem}
+.preview .block-summary{color:#94a3b8;font-size:.85rem}
+
+/* Testimonial / use cases */
+.use-cases{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem}
+.use-case{background:var(--brand-light);border-radius:var(--radius);padding:1.5rem}
+.use-case .persona{font-weight:700;color:var(--brand);font-size:.85rem;margin-bottom:.3rem}
+.use-case p{font-size:.9rem;color:var(--text)}
+
+/* Commands */
+.commands-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem}
+.cmd{background:var(--card);border-radius:12px;padding:1rem;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.cmd code{background:var(--brand-light);color:var(--brand);padding:.15rem .4rem;border-radius:4px;font-size:.85rem;font-weight:600}
+.cmd p{font-size:.85rem;color:var(--muted);margin-top:.3rem}
+
+/* Footer */
+.site-footer{background:var(--dark);color:#94a3b8;padding:3rem 1.5rem;text-align:center;font-size:.85rem}
+.site-footer a{color:#c7d2fe}
+
+/* Responsive */
+@media(max-width:600px){.hero .cta-secondary{display:block;margin:.75rem auto 0;width:fit-content}}
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+  <h1>ClassGen</h1>
+  <p class="tagline">AI lesson packs for African classrooms. Send a topic on WhatsApp, get a ready-to-teach lesson pack with activities, homework, and teacher notes.</p>
+  <a href="https://wa.me/14155238886?text=Hi" class="cta">Try on WhatsApp</a>
+  <a href="#how-it-works" class="cta-secondary">See how it works</a>
+</div>
+
+<!-- How it works -->
+<section id="how-it-works">
+  <div class="section-label">How It Works</div>
+  <h2>Three messages to a full lesson</h2>
+  <p class="lead">No app to download. No account to create. Just message ClassGen on WhatsApp.</p>
+  <div class="steps">
+    <div class="step">
+      <div class="num">1</div>
+      <h3>Send your topic</h3>
+      <p>"SS2 Biology: Photosynthesis" or just "photosynthesis" and ClassGen will ask for the details.</p>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <h3>Get your lesson pack</h3>
+      <p>Five blocks: an attention-grabbing opener, core concept explanation, classroom activity, exercise-book homework, and teacher notes.</p>
+    </div>
+    <div class="step">
+      <div class="num">3</div>
+      <h3>Walk into class</h3>
+      <p>Download the PDF, write the homework code on the board, and teach. Students with phones can take a quick quiz at home.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Lesson preview -->
+<section>
+  <div class="section-label">What You Get</div>
+  <h2>A complete lesson pack</h2>
+  <p class="lead">Every pack is structured as a lesson flow — each section maps to a phase of your class period.</p>
+  <div class="preview">
+    <div class="block">
+      <div class="block-title">Opener: The Factory Inside Every Leaf</div>
+      <div class="block-summary">"What did that tree eat for breakfast? By the end of this lesson, you'll know exactly how plants cook their own food."</div>
+    </div>
+    <div class="block">
+      <div class="block-title">Explain: Photosynthesis — Plants' Secret Recipe</div>
+      <div class="block-summary">Plain-language explanation with a wow fact woven in, the word equation, and a quick check question.</div>
+    </div>
+    <div class="block">
+      <div class="block-title">Activity: Photosynthesis Relay Race (12 min)</div>
+      <div class="block-summary">Groups of 5 compete to build the process on the board. Setup, timing, and rules included.</div>
+    </div>
+    <div class="block">
+      <div class="block-title">Homework: Plant Doctor Detective Case</div>
+      <div class="block-summary">A story problem students complete in their exercise book with a pen — no technology needed.</div>
+    </div>
+    <div class="block">
+      <div class="block-title">Teacher Notes</div>
+      <div class="block-summary">Expected answers, common mistakes, quick assessment check, next lesson link, WAEC exam tip.</div>
+    </div>
+  </div>
+</section>
+
+<!-- Designed for -->
+<section>
+  <div class="section-label">Designed For Real Classrooms</div>
+  <h2>Paper first. Teacher as performer.</h2>
+  <p class="lead">ClassGen is built for the reality of African secondary schools.</p>
+  <div class="features">
+    <div class="feature">
+      <div class="icon">📓</div>
+      <h3>Exercise book homework</h3>
+      <p>Every assignment is completable with a pen and an exercise book. Story problems, detective cases, design challenges, and games students draw themselves.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">👥</div>
+      <h3>30-60 students</h3>
+      <p>Activities designed for large classes with fixed desks. Group sizes, timing, and materials specified. No projectors or printouts required.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">📱</div>
+      <h3>WhatsApp-native</h3>
+      <p>Works on the messaging app teachers already use. No new software to learn, no account to create, works on any phone with WhatsApp.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🎓</div>
+      <h3>Exam-board aware</h3>
+      <p>Detects WAEC, NECO, or Cambridge from your class level. Teacher notes include exam tips and past paper question styles.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">📊</div>
+      <h3>Homework codes</h3>
+      <p>Each lesson comes with a 6-character code. Students who have phone access can take a quick quiz — teacher sees results instantly.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🌍</div>
+      <h3>Multi-language</h3>
+      <p>Send your message in Yoruba, Hausa, French, or Swahili — ClassGen responds in your language. Bilingual lesson packs on request.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Use cases -->
+<section>
+  <div class="section-label">Who Uses ClassGen</div>
+  <h2>Teachers across Nigeria</h2>
+  <div class="use-cases">
+    <div class="use-case">
+      <div class="persona">Mrs. Okafor — SS2 Biology, Lagos</div>
+      <p>Uses ClassGen every Sunday evening to prepare Monday's lesson. Downloads the PDF, marks up her copy, and walks in ready. "I used to spend 2 hours preparing. Now it's 15 minutes."</p>
+    </div>
+    <div class="use-case">
+      <div class="persona">Mr. Adeyemi — SS1 Mathematics, Ibadan</div>
+      <p>Shares homework codes with students on the board. 60% of his class has phone access at home — they take the quiz and he checks results the next morning via WhatsApp.</p>
+    </div>
+    <div class="use-case">
+      <div class="persona">Miss Bello — JSS3 English, Kano</div>
+      <p>Teaches in Hausa and English. Sends requests in Hausa and gets bilingual lesson packs. The homework stories are engaging enough that students actually do them.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Commands -->
+<section>
+  <div class="section-label">WhatsApp Commands</div>
+  <h2>Everything via chat</h2>
+  <p class="lead">No menus, no buttons. Just type what you need.</p>
+  <div class="commands-grid">
+    <div class="cmd"><code>SS2 Biology: Photosynthesis</code><p>Generate a full lesson pack for any topic.</p></div>
+    <div class="cmd"><code>register Mrs. Okafor</code><p>Create your teacher profile with a public page.</p></div>
+    <div class="cmd"><code>add class: SS2 Biology</code><p>Organize your lessons by class.</p></div>
+    <div class="cmd"><code>suggest SS2 Biology</code><p>See WAEC curriculum topics you haven't covered yet.</p></div>
+    <div class="cmd"><code>results MATH42</code><p>See how students scored on a homework quiz.</p></div>
+    <div class="cmd"><code>leaderboard MATH42</code><p>Top-scoring students for any homework code.</p></div>
+    <div class="cmd"><code>progress Amina SS2</code><p>Track a student's quiz scores across all homework.</p></div>
+    <div class="cmd"><code>study Photosynthesis</code><p>Quick revision recap for students — key facts + self-test.</p></div>
+    <div class="cmd"><code>help</code><p>See all available commands.</p></div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section>
+  <div class="section-label">Pricing</div>
+  <h2>Start free, upgrade when you need more</h2>
+  <div class="steps">
+    <div class="step">
+      <h3>Free</h3>
+      <p>5 lessons per week. All features included. No credit card needed. Just message ClassGen on WhatsApp.</p>
+    </div>
+    <div class="step">
+      <h3>Premium — NGN 2,000/mo</h3>
+      <p>Unlimited lessons. Priority generation. Curriculum suggestions. Pay via Paystack or bank transfer.</p>
+    </div>
+    <div class="step">
+      <h3>School — NGN 5,000/mo</h3>
+      <p>Unlimited lessons for all teachers. Admin dashboard. Student engagement reports. School branding on PDFs.</p>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section style="text-align:center;padding-bottom:5rem">
+  <h2>Ready to try?</h2>
+  <p class="lead" style="margin:0 auto 1.5rem">Send a message to ClassGen on WhatsApp. Your first lesson pack is 30 seconds away.</p>
+  <a href="https://wa.me/14155238886?text=Hi" class="hero cta" style="background:var(--brand);color:#fff;display:inline-block">Message ClassGen on WhatsApp</a>
+</section>
+
+<div class="site-footer">
+  <p>ClassGen &mdash; AI lesson packs for African classrooms</p>
+  <p style="margin-top:.5rem"><a href="mailto:admin@classgen.ng">admin@classgen.ng</a></p>
+</div>
+
+</body>
+</html>
