@@ -11,16 +11,7 @@ Usage is tracked before billing -- teachers see value before hitting the paywall
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from db import supabase
-
-# --- Currency config ---
-
-CURRENCIES = {
-    "NGN": {"symbol": "₦", "name": "Nigerian Naira"},
-    "KES": {"symbol": "KSh", "name": "Kenyan Shilling"},
-    "USD": {"symbol": "$", "name": "US Dollar"},
-}
-
-DEFAULT_CURRENCY = "NGN"
+from i18n import DEFAULT_CURRENCY, format_currency_short
 
 # --- Subscription tiers ---
 # Prices keyed by ISO currency code. Add new currencies here.
@@ -44,9 +35,11 @@ def get_price(tier: str, currency: str = DEFAULT_CURRENCY) -> int:
 
 
 def format_price(amount: int, currency: str = DEFAULT_CURRENCY) -> str:
-    """Format an amount with the currency symbol, e.g. '₦2,000' or 'KSh 500'."""
-    info = CURRENCIES.get(currency.upper(), CURRENCIES[DEFAULT_CURRENCY])
-    return f"{info['symbol']}{amount:,}"
+    """Format an amount with the currency symbol via Babel.
+
+    Uses short format (no decimals) for cleaner WhatsApp messages.
+    """
+    return format_currency_short(amount, currency)
 
 # In-memory stores for local dev
 _mem_usage: dict[str, list] = {}
