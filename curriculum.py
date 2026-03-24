@@ -4,7 +4,7 @@ Provides topic lists per (exam_board, subject, class) for teacher suggestions
 and coverage tracking. This is an ASSIST layer -- teachers always have the
 option to request any topic on demand.
 
-Data sourced from WAEC/NECO syllabi for Nigerian secondary schools.
+Data sourced from WAEC/NECO syllabi (West Africa). KNEC/KCSE topics (East Africa) to be added.
 """
 
 # Curriculum data: {exam_board: {subject: {class: [topics]}}}

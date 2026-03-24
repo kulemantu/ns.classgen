@@ -1,7 +1,7 @@
 [project]
 name = "classgen"
 version = "1.1.0"
-description = "AI lesson activity generator for Nigerian secondary school teachers"
+description = "AI lesson activity generator for African secondary school teachers"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.135",

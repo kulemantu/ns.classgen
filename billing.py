@@ -12,13 +12,41 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from db import supabase
 
+# --- Currency config ---
+
+CURRENCIES = {
+    "NGN": {"symbol": "₦", "name": "Nigerian Naira"},
+    "KES": {"symbol": "KSh", "name": "Kenyan Shilling"},
+    "USD": {"symbol": "$", "name": "US Dollar"},
+}
+
+DEFAULT_CURRENCY = "NGN"
+
 # --- Subscription tiers ---
+# Prices keyed by ISO currency code. Add new currencies here.
+
+TIER_PRICES = {
+    "free":    {"NGN": 0,    "KES": 0,    "USD": 0},
+    "premium": {"NGN": 2000, "KES": 500,  "USD": 3},
+    "school":  {"NGN": 5000, "KES": 1200, "USD": 7},
+}
 
 TIERS = {
-    "free": {"name": "Free", "lessons_per_week": 5, "price_ngn": 0},
-    "premium": {"name": "Premium", "lessons_per_week": -1, "price_ngn": 2000},  # -1 = unlimited
-    "school": {"name": "School", "lessons_per_week": -1, "price_ngn": 5000, "per_seat": True},
+    "free": {"name": "Free", "lessons_per_week": 5},
+    "premium": {"name": "Premium", "lessons_per_week": -1},  # -1 = unlimited
+    "school": {"name": "School", "lessons_per_week": -1, "per_seat": True},
 }
+
+
+def get_price(tier: str, currency: str = DEFAULT_CURRENCY) -> int:
+    """Get the price for a tier in the given currency."""
+    return TIER_PRICES.get(tier, TIER_PRICES["free"]).get(currency.upper(), 0)
+
+
+def format_price(amount: int, currency: str = DEFAULT_CURRENCY) -> str:
+    """Format an amount with the currency symbol, e.g. '₦2,000' or 'KSh 500'."""
+    info = CURRENCIES.get(currency.upper(), CURRENCIES[DEFAULT_CURRENCY])
+    return f"{info['symbol']}{amount:,}"
 
 # In-memory stores for local dev
 _mem_usage: dict[str, list] = {}
@@ -214,13 +242,13 @@ class BankTransferProvider(PaymentProvider):
         # Bank transfer doesn't have a link -- return instructions
         return None
 
-    def get_instructions(self, amount: int, ref: str) -> str:
+    def get_instructions(self, amount: int, ref: str, currency: str = DEFAULT_CURRENCY) -> str:
         return (
             f"*Bank Transfer*\n\n"
             f"Bank: {self.BANK_DETAILS['bank']}\n"
             f"Account: {self.BANK_DETAILS['account_number']}\n"
             f"Name: {self.BANK_DETAILS['account_name']}\n"
-            f"Amount: NGN {amount:,}\n"
+            f"Amount: {format_price(amount, currency)}\n"
             f"Reference: {ref}\n\n"
             f"After payment, send: confirm {ref}"
         )

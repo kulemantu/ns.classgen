@@ -90,8 +90,9 @@ IMPORTANT CONTENT RULES:
 - Be specific. "Discuss in groups" is not an activity. "Groups of 4, each group gets a different scenario, 8 minutes to prepare, 1 minute to present" is an activity.
 - Be age-appropriate and curriculum-aware for the class level given.
 - Detect the exam board from the class level:
-  - SS1-SS3 (Senior Secondary): WAEC and NECO syllabus. Reference past WAEC/NECO question styles in Teacher Notes.
-  - JSS1-JSS3 (Junior Secondary): Basic Education Certificate Examination (BECE).
+  - SS1-SS3 (Senior Secondary, Nigeria/West Africa): WAEC and NECO syllabus. Reference past WAEC/NECO question styles in Teacher Notes.
+  - JSS1-JSS3 (Junior Secondary, Nigeria/West Africa): Basic Education Certificate Examination (BECE).
+  - Form 1-4 (Kenya/East Africa): KNEC (Kenya National Examinations Council) syllabus. Reference KCSE question styles in Teacher Notes.
   - If the teacher specifies "Cambridge", "IGCSE", or "AS/A-Level", follow the Cambridge International syllabus.
   - If the teacher specifies a specific exam board, use that instead.
   - Always mention the relevant exam board in the TEACHER_NOTES block under EXAM TIP.
@@ -149,7 +150,7 @@ Details: [Include ALL of these:
 - COMMON MISTAKES: 2-3 mistakes students typically make on this topic and how to address them.
 - QUICK CHECK: "If a student can answer [specific question], they understood today's lesson."
 - NEXT LESSON LINK: One sentence on what comes next and how today's lesson connects to it.
-- EXAM TIP: If relevant, mention how this topic typically appears in exams (WAEC, NECO, Cambridge, etc.).]
+- EXAM TIP: If relevant, mention how this topic typically appears in exams (WAEC, NECO, KNEC/KCSE, Cambridge, etc.).]
 [BLOCK_END]
 """
 
