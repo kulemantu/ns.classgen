@@ -186,3 +186,138 @@ def test_submit_quiz_wrong_answer(mock_get_hw, mock_save_sub):
     data = response.json()
     assert data["score"] == 0
     assert data["results"][0]["is_correct"] is False
+
+
+# --- Web Teacher Profile API Tests ---
+
+@patch("main.get_teacher_by_phone")
+def test_teacher_profile_unregistered(mock_get):
+    mock_get.return_value = None
+    response = client.get("/api/teacher/profile?thread_id=chat_test123")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["registered"] is False
+
+
+@patch("main.list_homework_codes_for_teacher", return_value=[])
+@patch("main.get_teacher_lesson_stats", return_value={"total": 5, "this_week": 2, "this_month": 3})
+@patch("main.get_teacher_by_phone")
+def test_teacher_profile_registered(mock_get, mock_stats, mock_codes):
+    mock_get.return_value = {"name": "Mrs. Test", "slug": "mrs-test", "classes": ["SS2 Biology"]}
+    response = client.get("/api/teacher/profile?thread_id=chat_test123")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["registered"] is True
+    assert data["teacher"]["name"] == "Mrs. Test"
+    assert data["stats"]["total"] == 5
+    assert data["codes"] == []
+
+
+@patch("main.save_teacher")
+def test_teacher_register(mock_save):
+    mock_save.return_value = {"name": "Mrs. Okafor", "slug": "mrs-okafor", "classes": []}
+    response = client.post("/api/teacher/register", json={
+        "thread_id": "chat_abc123",
+        "name": "Mrs. Okafor",
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data["registered"] is True
+    assert data["teacher"]["name"] == "Mrs. Okafor"
+    mock_save.assert_called_once_with("chat_abc123", "Mrs. Okafor")
+
+
+def test_teacher_register_short_name():
+    response = client.post("/api/teacher/register", json={
+        "thread_id": "chat_abc123",
+        "name": "X",
+    })
+    assert response.status_code == 422
+
+
+@patch("main.update_teacher_name")
+def test_teacher_update_name(mock_update):
+    mock_update.return_value = {"name": "Mrs. New Name", "slug": "mrs-new-name", "classes": []}
+    response = client.patch("/api/teacher/profile", json={
+        "thread_id": "chat_abc123",
+        "name": "Mrs. New Name",
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data["teacher"]["name"] == "Mrs. New Name"
+
+
+@patch("main.get_teacher_by_phone")
+@patch("main.add_teacher_class")
+def test_teacher_add_class(mock_add, mock_get):
+    mock_get.side_effect = [
+        {"name": "T", "slug": "t", "classes": []},
+        {"name": "T", "slug": "t", "classes": ["SS2 Biology"]},
+    ]
+    mock_add.return_value = True
+    response = client.post("/api/teacher/classes", json={
+        "thread_id": "chat_abc123",
+        "class_name": "SS2 Biology",
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert "SS2 Biology" in data["classes"]
+
+
+@patch("main.get_teacher_by_phone")
+@patch("main.remove_teacher_class")
+def test_teacher_remove_class(mock_remove, mock_get):
+    mock_get.side_effect = [
+        {"name": "T", "slug": "t", "classes": ["SS2 Biology"]},
+        {"name": "T", "slug": "t", "classes": []},
+    ]
+    mock_remove.return_value = True
+    response = client.delete("/api/teacher/classes/SS2%20Biology?thread_id=chat_abc123")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["classes"] == []
+
+
+@patch("main.clear_session_history")
+def test_clear_history(mock_clear):
+    mock_clear.return_value = True
+    response = client.delete("/api/teacher/history?thread_id=chat_abc123")
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    mock_clear.assert_called_once_with("chat_abc123")
+
+
+@patch("main.save_homework_code")
+@patch("main.generate_homework_code", return_value="WEB001")
+@patch("main.call_openrouter", new_callable=AsyncMock)
+@patch("main.log_session")
+@patch("main.get_session_history")
+@patch("main.generate_pdf_from_markdown")
+@patch("main.handle_command", return_value=None)
+@patch("main.log_usage")
+@patch("main.check_usage")
+@patch("main.get_teacher_by_phone")
+def test_chat_with_registered_teacher(mock_get_teacher, mock_check, mock_log_usage,
+                                       mock_cmd, mock_pdf,
+                                       mock_history, mock_log, mock_llm,
+                                       mock_gen_code, mock_save_code):
+    """When a registered web teacher chats, usage is checked and teacher_phone is set."""
+    mock_get_teacher.return_value = {"name": "Mrs. Web", "slug": "mrs-web", "classes": []}
+    mock_check.return_value = type("U", (), {"allowed": True, "remaining": 4, "tier": "free", "message": ""})()
+    mock_history.return_value = []
+    mock_llm.side_effect = [SAMPLE_LESSON_RESPONSE, '[]']
+    mock_pdf.return_value = "lesson_plan_web.pdf"
+
+    response = client.post("/api/chat", json={
+        "message": "SS2 Biology: Photosynthesis",
+        "thread_id": "chat_registered",
+    })
+    assert response.status_code == 200
+    # Verify usage was checked and logged
+    mock_check.assert_called_once_with("chat_registered")
+    mock_log_usage.assert_called_once_with("chat_registered", "lesson")
+    # Verify save_homework_code was called with teacher_phone=threadId
+    mock_save_code.assert_called_once()
+    call_kwargs = mock_save_code.call_args
+    assert call_kwargs[1].get("teacher_phone") == "chat_registered" or \
+           (len(call_kwargs[0]) >= 6 and call_kwargs[0][5] == "chat_registered")

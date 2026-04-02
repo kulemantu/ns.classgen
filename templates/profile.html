@@ -7,6 +7,14 @@
   {% if teacher.school %}{{ teacher.school }} &middot; {% endif %}ClassGen Teacher
 </div>
 
+{% if stats %}
+<div class="stats">
+  <div class="stat-box"><div class="num">{{ stats.total }}</div><div class="label">Lessons</div></div>
+  <div class="stat-box"><div class="num">{{ stats.this_week }}</div><div class="label">This Week</div></div>
+  <div class="stat-box"><div class="num">{{ stats.this_month }}</div><div class="label">This Month</div></div>
+</div>
+{% endif %}
+
 {% if teacher.classes %}
 <div class="card">
   <h2>Classes</h2>
@@ -37,6 +45,12 @@
 {% else %}
 <div class="card">
   <div class="empty">No homework codes yet.</div>
+</div>
+{% endif %}
+
+{% if codes %}
+<div style="text-align:center;margin-top:.5rem">
+  <a href="/t/{{ teacher.slug }}/export" style="font-size:.85rem">Download data (CSV)</a>
 </div>
 {% endif %}
 {% endblock %}

@@ -26,3 +26,8 @@ static/*.pdf
 
 # Playwright MCP
 .playwright-mcp/
+
+# Session management (see global working-sessions.md rules)
+.local/
+.sessions/
+WORKING-SESSION*.md

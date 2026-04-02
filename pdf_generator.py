@@ -10,13 +10,20 @@ static_dir = os.path.join(os.path.dirname(__file__), "static")
 os.makedirs(static_dir, exist_ok=True)
 
 class ClassGenPDF(FPDF):
-    def __init__(self, subtitle: str = ""):
+    def __init__(self, subtitle: str = "", school_name: str = ""):
         super().__init__()
         self._subtitle = _sanitize_for_latin1(subtitle) if subtitle else ""
+        self._school_name = _sanitize_for_latin1(school_name) if school_name else ""
 
     def header(self):
         self.set_font("helvetica", "B", 15)
-        self.cell(0, 10, "ClassGen Lesson Plan", border=0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+        title = self._school_name or "ClassGen Lesson Plan"
+        self.cell(0, 10, title, border=0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+        if self._school_name:
+            self.set_font("helvetica", size=9)
+            self.set_text_color(100, 100, 100)
+            self.cell(0, 5, "Powered by ClassGen", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+            self.set_text_color(0, 0, 0)
         if self._subtitle:
             self.set_font("helvetica", "I", 10)
             self.cell(0, 6, self._subtitle, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
@@ -85,7 +92,8 @@ def _safe_line(line: str) -> str:
     return " ".join(safe_words)
 
 
-def generate_pdf_from_markdown(md_text: str, subtitle: str = "") -> str:
+def generate_pdf_from_markdown(md_text: str, subtitle: str = "",
+                               school_name: str = "") -> str:
     """
     Converts lesson text to a PDF file in the static directory.
     Handles both raw markdown and the block-structured format.
@@ -93,7 +101,7 @@ def generate_pdf_from_markdown(md_text: str, subtitle: str = "") -> str:
     """
     md_text = _sanitize_for_latin1(md_text)
 
-    pdf = ClassGenPDF(subtitle=subtitle)
+    pdf = ClassGenPDF(subtitle=subtitle, school_name=school_name)
     pdf.add_page()
     pdf.set_font("helvetica", size=11)
     # Effective page width for multi_cell (avoids x-drift issues with width=0)

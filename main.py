@@ -11,15 +11,21 @@ from db import (
     log_session, get_session_history,
     save_homework_code, get_homework_code,
     save_quiz_submission, get_quiz_results,
-    get_teacher_by_slug, list_homework_codes_for_teacher,
+    save_teacher, get_teacher_by_phone, get_teacher_by_slug,
+    add_teacher_class, remove_teacher_class, update_teacher_name,
+    list_homework_codes_for_teacher,
     log_lesson_generated, get_cached_lesson, cache_lesson,
     get_school, get_school_teachers,
-    get_active_thread,
+    get_active_thread, clear_session_history,
+    count_quiz_submissions_for_codes, get_teacher_lesson_stats,
 )
 from commands import handle_command
 from billing import check_usage, log_usage
 from notifications import save_push_subscription, notify_quiz_submission
+from messaging import send_quiz_summary
 from pdf_generator import generate_pdf_from_markdown
+import csv
+import io
 import json
 import os
 import time
@@ -335,6 +341,115 @@ async def push_subscribe(sub: PushSubscription):
     return {"ok": True}
 
 
+# --- Web Teacher Profile API ---
+
+class TeacherRegisterRequest(BaseModel):
+    thread_id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=2, max_length=100)
+
+
+class TeacherUpdateRequest(BaseModel):
+    thread_id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=2, max_length=100)
+
+
+class TeacherClassRequest(BaseModel):
+    thread_id: str = Field(..., min_length=1)
+    class_name: str = Field(..., min_length=3, max_length=50)
+
+
+@app.get("/api/teacher/profile")
+async def teacher_profile_api(thread_id: str = ""):
+    """Get teacher profile, stats, and recent codes for a web teacher."""
+    if not thread_id:
+        return JSONResponse({"error": "thread_id required"}, status_code=400)
+    teacher = get_teacher_by_phone(thread_id)
+    if not teacher:
+        return {"registered": False}
+    stats = get_teacher_lesson_stats(thread_id)
+    codes_raw = list_homework_codes_for_teacher(thread_id, limit=10)
+    codes = []
+    for hw in codes_raw:
+        block = hw.get("homework_block", "")
+        title_match = re.search(r"Title:\s*(.*?)(?:\n|$)", block)
+        codes.append({
+            "code": hw.get("code", ""),
+            "title": title_match.group(1).strip() if title_match else "Homework",
+        })
+    return {
+        "registered": True,
+        "teacher": {
+            "name": teacher.get("name", ""),
+            "slug": teacher.get("slug", ""),
+            "classes": teacher.get("classes", []),
+        },
+        "stats": stats,
+        "codes": codes,
+    }
+
+
+@app.post("/api/teacher/register")
+async def teacher_register_api(req: TeacherRegisterRequest):
+    """Register a web teacher using their threadId as identity."""
+    teacher = save_teacher(req.thread_id, req.name)
+    return {
+        "registered": True,
+        "teacher": {
+            "name": teacher.get("name", ""),
+            "slug": teacher.get("slug", ""),
+            "classes": teacher.get("classes", []),
+        },
+    }
+
+
+@app.patch("/api/teacher/profile")
+async def teacher_update_api(req: TeacherUpdateRequest):
+    """Update a web teacher's name."""
+    teacher = update_teacher_name(req.thread_id, req.name)
+    if not teacher:
+        return JSONResponse({"error": "Teacher not found"}, status_code=404)
+    return {
+        "teacher": {
+            "name": teacher.get("name", ""),
+            "slug": teacher.get("slug", ""),
+            "classes": teacher.get("classes", []),
+        },
+    }
+
+
+@app.post("/api/teacher/classes")
+async def teacher_add_class_api(req: TeacherClassRequest):
+    """Add a class to a web teacher's profile."""
+    teacher = get_teacher_by_phone(req.thread_id)
+    if not teacher:
+        return JSONResponse({"error": "Register first"}, status_code=404)
+    add_teacher_class(req.thread_id, req.class_name)
+    updated = get_teacher_by_phone(req.thread_id)
+    return {"classes": updated.get("classes", []) if updated else []}
+
+
+@app.delete("/api/teacher/classes/{class_name}")
+async def teacher_remove_class_api(class_name: str, thread_id: str = ""):
+    """Remove a class from a web teacher's profile."""
+    if not thread_id:
+        return JSONResponse({"error": "thread_id required"}, status_code=400)
+    teacher = get_teacher_by_phone(thread_id)
+    if not teacher:
+        return JSONResponse({"error": "Teacher not found"}, status_code=404)
+    remove_teacher_class(thread_id, class_name)
+    updated = get_teacher_by_phone(thread_id)
+    return {"classes": updated.get("classes", []) if updated else []}
+
+
+@app.delete("/api/teacher/history")
+async def teacher_clear_history_api(thread_id: str = ""):
+    """Clear chat history for a web teacher's thread."""
+    if not thread_id:
+        return JSONResponse({"error": "thread_id required"}, status_code=400)
+    clear_session_history(thread_id)
+    return {"ok": True}
+
+
 def _whatsapp_summary(lesson_text: str, homework_code: str | None, base_url: str) -> str:
     """Create a WhatsApp-friendly summary (under 1500 chars) from a full lesson pack."""
     titles = re.findall(
@@ -454,14 +569,42 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/api/chat")
-async def local_chat_endpoint(req: ChatRequest):
+async def local_chat_endpoint(req: ChatRequest, request: Request):
     """Local JSON endpoint for the web UI."""
-    # Handle greetings and help on web too (no phone, use thread_id as identity)
-    cmd_result = handle_command(req.message, req.thread_id, "")
-    if cmd_result and cmd_result.session_action != "study":
+    base_url = f"{request.url.scheme}://{request.url.netloc}"
+
+    # Link lessons to registered web teachers for stats tracking
+    teacher = get_teacher_by_phone(req.thread_id)
+    teacher_phone = req.thread_id if teacher else ""
+
+    # Handle commands (with proper base_url for link generation)
+    cmd_result = handle_command(req.message, req.thread_id, base_url)
+    if cmd_result:
+        # Study mode: send topic to LLM with a recap prompt
+        if cmd_result.session_action == "study":
+            topic = cmd_result.new_thread_id or req.message
+            study_prompt = (
+                "Give a concise study recap of this topic for a secondary school student. "
+                "Include: key definitions, the main formula/rule, one example, and 3 quick "
+                "self-test questions. Keep it under 1000 characters. Topic: " + topic
+            )
+            recap = await call_openrouter(CLASSGEN_SYSTEM_PROMPT, study_prompt)
+            return {"reply": recap or "Could not generate a recap right now. Try again.", "pdf_url": None, "homework_code": None}
         return {"reply": cmd_result.reply, "pdf_url": None, "homework_code": None}
 
-    assistant_reply, pdf_url, homework_code = await _generate_lesson(req.message, req.thread_id)
+    # Check usage quota (same enforcement as WhatsApp)
+    if teacher_phone:
+        usage = check_usage(teacher_phone)
+        if not usage.allowed:
+            return {"reply": usage.message, "pdf_url": None, "homework_code": None}
+
+    assistant_reply, pdf_url, homework_code = await _generate_lesson(
+        req.message, req.thread_id, teacher_phone=teacher_phone
+    )
+
+    # Track usage for registered teachers
+    if teacher_phone and _has_lesson_blocks(assistant_reply):
+        log_usage(teacher_phone, "lesson")
 
     return {
         "reply": assistant_reply,
@@ -531,10 +674,19 @@ async def submit_quiz(request: Request, code: str, submission: QuizSubmission):
     save_quiz_submission(code.upper(), submission.student_name, submission.student_class, submission.answers, score, total)
 
     # Notify teacher via push notification
-    teacher_id = hw.get("teacher_phone") or hw.get("thread_id", "")
+    teacher_phone = hw.get("teacher_phone", "")
+    teacher_id = teacher_phone or hw.get("thread_id", "")
+    base_url = f"{request.url.scheme}://{request.url.netloc}"
     if teacher_id:
-        base_url = f"{request.url.scheme}://{request.url.netloc}"
         notify_quiz_submission(teacher_id, code.upper(), submission.student_name, score, total, base_url)
+
+    # Send WhatsApp summary at milestones (1st, 5th, 10th, then every 10th)
+    if teacher_phone:
+        submissions = get_quiz_results(code.upper())
+        count = len(submissions)
+        if count in (1, 5, 10) or (count > 10 and count % 10 == 0):
+            avg = sum(s.get("score", 0) for s in submissions) / count
+            send_quiz_summary(teacher_phone, code.upper(), count, avg, total, base_url)
 
     return {
         "score": score,
@@ -621,9 +773,12 @@ async def teacher_profile(request: Request, slug: str):
             "title": title_match.group(1).strip() if title_match else "Homework",
         })
 
+    stats = get_teacher_lesson_stats(phone)
+
     return templates.TemplateResponse(request, "profile.html", {
         "teacher": teacher,
         "codes": codes,
+        "stats": stats,
     })
 
 
@@ -636,12 +791,14 @@ async def school_admin(request: Request, slug: str):
 
     teachers = get_school_teachers(slug)
     # Enrich with lesson counts
+    all_code_ids = []
     for t in teachers:
         codes = list_homework_codes_for_teacher(t.get("phone", ""), limit=100)
         t["lesson_count"] = len(codes)
+        all_code_ids.extend(hw.get("code", "") for hw in codes if hw.get("code"))
 
     total_lessons = sum(t.get("lesson_count", 0) for t in teachers)
-    total_students = 0  # Would aggregate quiz submissions across all teachers
+    total_students = count_quiz_submissions_for_codes(all_code_ids)
 
     return templates.TemplateResponse(request, "admin.html", {
         "school": school,
@@ -651,16 +808,97 @@ async def school_admin(request: Request, slug: str):
     })
 
 
+@app.get("/t/{slug}/export")
+async def teacher_export(slug: str):
+    """Export teacher's quiz data as CSV."""
+    teacher = get_teacher_by_slug(slug)
+    if not teacher:
+        return JSONResponse({"error": "Teacher not found"}, status_code=404)
+
+    phone = teacher.get("phone", "")
+    codes_raw = list_homework_codes_for_teacher(phone, limit=100)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Homework Code", "Homework Title", "Student", "Class", "Score", "Total", "Submitted"])
+
+    for hw in codes_raw:
+        code = hw.get("code", "")
+        block = hw.get("homework_block", "")
+        title_match = re.search(r"Title:\s*(.*?)(?:\n|$)", block)
+        title = title_match.group(1).strip() if title_match else "Homework"
+
+        submissions = get_quiz_results(code)
+        if submissions:
+            for s in submissions:
+                writer.writerow([
+                    code, title, s.get("student_name", ""),
+                    s.get("student_class", ""), s.get("score", 0),
+                    s.get("total", 0), s.get("created_at", ""),
+                ])
+        else:
+            writer.writerow([code, title, "", "", "", "", ""])
+
+    csv_content = output.getvalue()
+    teacher_name = teacher.get("name", "teacher").replace(" ", "_")
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{teacher_name}_export.csv"'},
+    )
+
+
+@app.get("/s/{slug}/export")
+async def school_export(slug: str):
+    """Export school-wide data as CSV."""
+    school = get_school(slug)
+    if not school:
+        return JSONResponse({"error": "School not found"}, status_code=404)
+
+    teachers = get_school_teachers(slug)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Teacher", "Classes", "Homework Code", "Student", "Class", "Score", "Total", "Submitted"])
+
+    for t in teachers:
+        phone = t.get("phone", "")
+        teacher_name = t.get("name", "")
+        classes = ", ".join(t.get("classes", []))
+        codes_raw = list_homework_codes_for_teacher(phone, limit=100)
+
+        for hw in codes_raw:
+            code = hw.get("code", "")
+            submissions = get_quiz_results(code)
+            if submissions:
+                for s in submissions:
+                    writer.writerow([
+                        teacher_name, classes, code,
+                        s.get("student_name", ""), s.get("student_class", ""),
+                        s.get("score", 0), s.get("total", 0),
+                        s.get("created_at", ""),
+                    ])
+            else:
+                writer.writerow([teacher_name, classes, code, "", "", "", "", ""])
+
+    csv_content = output.getvalue()
+    school_name = school.get("name", "school").replace(" ", "_")
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{school_name}_export.csv"'},
+    )
+
+
 @app.post("/api/dev/seed")
 async def dev_seed():
     """Seed mock data for local testing. Only works without Supabase."""
-    from db import supabase as _sb, save_teacher
+    from db import supabase as _sb
     if _sb:
         return JSONResponse({"error": "Only available in local dev mode"}, status_code=403)
 
     # Seed a teacher
     teacher = save_teacher("+2348012345678", "Mrs. Okafor", "Lagos Model School")
-    from db import add_teacher_class
     add_teacher_class("+2348012345678", "SS2 Biology")
     add_teacher_class("+2348012345678", "SS1 Mathematics")
 

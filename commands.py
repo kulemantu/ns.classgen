@@ -13,6 +13,7 @@ from db import (
     get_class_leaderboard, get_student_progress,
     save_parent_subscription, get_covered_topics,
     log_session, set_active_thread,
+    get_teacher_lesson_stats,
 )
 from curriculum import suggest_topics, parse_class_string, list_subjects
 
@@ -88,6 +89,13 @@ def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None
         args = re.sub(r"^subscribe parent\s*", "", text, flags=re.IGNORECASE).strip()
         return _cmd_subscribe_parent(phone, args)
 
+    if lower in ("stats", "my stats", "statistics"):
+        return _cmd_stats(phone, base_url)
+
+    if lower.startswith("log "):
+        code = re.sub(r"^log\s+", "", text, flags=re.IGNORECASE).strip().upper()
+        return _cmd_submission_log(code)
+
     if lower.startswith("confirm "):
         ref = re.sub(r"^confirm\s+", "", text, flags=re.IGNORECASE).strip()
         return CommandResult(
@@ -138,6 +146,7 @@ def _cmd_help(base_url: str) -> CommandResult:
         "*Homework & Results*\n"
         "  my codes -- list your recent codes\n"
         "  results CODE -- quiz results summary\n"
+        "  log CODE -- submission order & top scorer\n"
         "  leaderboard CODE -- top students\n"
         "  progress [Name] [Class] -- student history\n\n"
         "*Parents*\n"
@@ -146,6 +155,7 @@ def _cmd_help(base_url: str) -> CommandResult:
         "  suggest [class] -- topic suggestions\n"
         "  covered [class] -- what you've taught\n\n"
         "*Other*\n"
+        "  stats -- your lesson stats\n"
         "  study [topic] -- quick recap\n"
         "  new -- start a fresh lesson\n"
         "  help -- this menu"
@@ -311,6 +321,68 @@ def _cmd_study_mode(topic: str) -> CommandResult:
         session_action="study",
         new_thread_id=topic,  # pass the topic through
     )
+
+
+# --- Stats & Submission Log ---
+
+def _cmd_stats(phone: str, base_url: str) -> CommandResult:
+    """Show teacher's lesson generation stats."""
+    teacher = get_teacher_by_phone(phone)
+    if not teacher:
+        return CommandResult(reply="Register first. Send: register [Your Name]")
+
+    stats = get_teacher_lesson_stats(phone)
+    slug = teacher.get("slug", "")
+    lines = [
+        "*Your ClassGen Stats*\n",
+        f"Lessons created: *{stats['total']}*",
+        f"This week: *{stats['this_week']}*",
+        f"This month: *{stats['this_month']}*",
+    ]
+    if slug:
+        lines.append(f"\nProfile: {base_url}/t/{slug}")
+        lines.append(f"Export data: {base_url}/t/{slug}/export")
+    return CommandResult(reply="\n".join(lines))
+
+
+def _cmd_submission_log(code: str) -> CommandResult:
+    """Show quiz submissions in order — who finished first, top scorer."""
+    if not code:
+        return CommandResult(reply="Send: log CODE\n\nExample: log MATH42")
+    results = get_quiz_results(code)
+    if not results:
+        return CommandResult(reply=f"No submissions yet for *{code}*.")
+
+    # Sort by created_at ascending (earliest first)
+    by_time = sorted(results, key=lambda s: s.get("created_at", ""))
+    # Find top scorer
+    top = max(results, key=lambda s: s.get("score", 0))
+
+    lines = [f"*Submission log for {code}* ({len(results)} students)\n"]
+
+    # First finisher
+    first = by_time[0]
+    lines.append(f"First to finish: *{first.get('student_name', '?')}* "
+                 f"({first.get('score', 0)}/{first.get('total', 5)})")
+
+    # Top scorer
+    lines.append(f"Highest score: *{top.get('student_name', '?')}* "
+                 f"({top.get('score', 0)}/{top.get('total', 5)})\n")
+
+    # Full log
+    lines.append("_Submission order:_")
+    for i, s in enumerate(by_time, 1):
+        name = s.get("student_name", "?")
+        score = s.get("score", 0)
+        total = s.get("total", 5)
+        timestamp = s.get("created_at", "")
+        # Show just the time portion if available
+        time_str = ""
+        if timestamp and "T" in timestamp:
+            time_str = f" at {timestamp.split('T')[1][:5]}"
+        lines.append(f"  {i}. {name} -- {score}/{total}{time_str}")
+
+    return CommandResult(reply="\n".join(lines))
 
 
 # --- V3.0a Commands ---

@@ -31,4 +31,10 @@
   <div class="empty">No teachers registered yet.</div>
   {% endif %}
 </div>
+
+{% if teachers %}
+<div style="text-align:center;margin-top:.5rem">
+  <a href="/s/{{ school.slug }}/export" style="font-size:.85rem">Download all data (CSV)</a>
+</div>
+{% endif %}
 {% endblock %}
