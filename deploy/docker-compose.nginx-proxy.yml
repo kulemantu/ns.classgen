@@ -1,5 +1,5 @@
 # Production stack for nginx-proxy + letsencrypt-companion hosts
-# Usage: docker compose -f deploy/docker-compose.nginx-proxy.yml up -d --build
+# Usage: docker compose --env-file deploy/.env.prod -f deploy/docker-compose.nginx-proxy.yml up -d --build
 #
 # Requires:
 #   1. Copy .env.prod.example to deploy/.env.prod and fill in values
@@ -22,8 +22,15 @@ services:
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=${LETSENCRYPT_HOST:-class.dater.world}
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-admin@dater.world}
+      - SUPABASE_URL=http://rest:3000
+      - SUPABASE_KEY=${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.ZopqoUt20nEV9cklpv9e3yCwind2FvMNT8CDGaHU-BI}
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.prod}@db:5432/classgen
     depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
       redis:
         condition: service_healthy
     volumes:
@@ -37,6 +44,37 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  db:
+    image: postgres:16-alpine
+    container_name: classgen-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: classgen
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../init.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  rest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: classgen-rest
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.prod}@db:5432/classgen
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: classgen_api
+      PGRST_JWT_SECRET: ${PGRST_JWT_SECRET:?Set PGRST_JWT_SECRET in .env.prod}
+      PGRST_SERVER_PORT: "3000"
+    depends_on:
+      db:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -52,6 +90,7 @@ services:
     command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
 
 volumes:
+  pgdata:
   redisdata:
   pdf_output:
 

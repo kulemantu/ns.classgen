@@ -1,3 +1,14 @@
+-- Least-privilege role for PostgREST anonymous access
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'classgen_api') THEN
+    CREATE ROLE classgen_api NOLOGIN;
+  END IF;
+END $$;
+
+GRANT USAGE ON SCHEMA public TO classgen_api;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO classgen_api;
+
 CREATE TABLE IF NOT EXISTS sessions (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   thread_id text NOT NULL,
@@ -11,6 +22,7 @@ CREATE TABLE IF NOT EXISTS teachers (
   name text NOT NULL,
   slug text UNIQUE NOT NULL,
   school text NOT NULL DEFAULT '',
+  school_slug text NOT NULL DEFAULT '',
   classes jsonb NOT NULL DEFAULT '[]',
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -19,7 +31,7 @@ CREATE TABLE IF NOT EXISTS homework_codes (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   code text UNIQUE NOT NULL,
   thread_id text NOT NULL,
-  teacher_phone text REFERENCES teachers(phone) DEFAULT NULL,
+  teacher_phone text DEFAULT NULL,
   lesson_content text NOT NULL,
   quiz_questions jsonb NOT NULL DEFAULT '[]',
   homework_block text NOT NULL DEFAULT '',
@@ -39,7 +51,7 @@ CREATE TABLE IF NOT EXISTS quiz_submissions (
 
 CREATE TABLE IF NOT EXISTS lesson_history (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  teacher_phone text NOT NULL REFERENCES teachers(phone),
+  teacher_phone text NOT NULL,
   subject text NOT NULL,
   topic text NOT NULL,
   class_level text NOT NULL,
@@ -96,3 +108,6 @@ CREATE TABLE IF NOT EXISTS parent_subscriptions (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   UNIQUE(parent_phone, teacher_phone, student_class)
 );
+
+-- Grant permissions on all tables created above
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO classgen_api;
