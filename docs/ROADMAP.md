@@ -355,6 +355,37 @@ Technical:
 
 ---
 
+### V3.1 -- Web Teacher Profiles & Settings (DONE)
+
+Goal: bring the teacher identity model (previously WhatsApp-only) to the web chat UI.
+
+Changes:
+- [x] Web teacher registration via sidebar (threadId = identity, reuses `teachers` table)
+- [x] Profile sidebar panel: editable name, stats (total/this week/this month), class badges, recent homework codes
+- [x] Settings panel: push notification toggle, clear chat history
+- [x] `/api/chat` now links homework codes to registered web teachers (enables stats tracking)
+- [x] REST endpoints: `GET/POST/PATCH /api/teacher/profile`, `POST/DELETE /api/teacher/classes`, `DELETE /api/teacher/history`
+- [x] Test coverage for all new endpoints (9 tests)
+
+Technical:
+- threadId serves as the `phone` field in the `teachers` table -- no schema changes needed
+- `db.py` -- added `remove_teacher_class()`, `update_teacher_name()`, `clear_session_history()`
+- Sidebar uses same glassmorphism styling as the chat UI
+
+### V3.2 -- Deferred Items (DONE)
+
+Goal: wire up deferred features from earlier phases and add teacher engagement tools.
+
+Changes:
+- [x] WhatsApp quiz result notifications to teachers (V1.2 deferred) -- milestone-based throttling (1st, 5th, 10th, then every 10th submission)
+- [x] School admin quiz submission count (was hardcoded 0)
+- [x] CSV data export: `GET /t/{slug}/export` (teacher) and `GET /s/{slug}/export` (school)
+- [x] Teacher lesson stats: `stats` WhatsApp command + stats card on profile page
+- [x] Quiz submission log: `log CODE` WhatsApp command (first finisher, top scorer, chronological order)
+- [x] School branding on PDFs (opt-in only -- teacher is the SI-unit, not the school)
+
+---
+
 ## Shared Technical Modules
 
 These modules cut across multiple phases. Building them right avoids rewriting later.
@@ -363,7 +394,7 @@ These modules cut across multiple phases. Building them right avoids rewriting l
 
 | Module | Purpose | Status |
 |---|---|---|
-| `commands.py` | WhatsApp command router -- matches text, falls through to LLM | DONE. 12 commands: help, register, my page, add class, my codes, results, leaderboard, progress, subscribe parent, study, new, reset |
+| `commands.py` | WhatsApp command router -- matches text, falls through to LLM | DONE. 14 commands: help, register, my page, add class, my codes, results, log, leaderboard, progress, subscribe parent, stats, study, new, reset |
 | `db.py` | Data access layer -- Supabase + in-memory fallback, `save/get/list` patterns | DONE. Tables: sessions, teachers, homework_codes, quiz_submissions, parent_subscriptions |
 | `utils.py` | OpenRouter LLM client + homework code generator (slimmed from original) | DONE |
 | `templates/` | Jinja2 shared base template + page templates | DONE. base.html, profile.html |

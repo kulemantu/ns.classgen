@@ -72,15 +72,16 @@ results.html     -- Teacher results dashboard (stats, per-question breakdown, su
 
 ```
 docker compose up -d
+docker compose exec app /app/.venv/bin/python -m migrations.runner
 ```
 
 Services:
-- **app** (port 8000) -- FastAPI app, built from Dockerfile
-- **db** (port 5432) -- Postgres 15, initialized with `init.sql` schema
-- **rest** (port 3000) -- PostgREST v12, provides REST API for Supabase client
-- **redis** (port 6379) -- Redis 7 with AOF persistence, 64MB LRU cache (for future session/rate-limiting)
+- **app** (port 8000) -- FastAPI app, built from Dockerfile, 2 uvicorn workers
+- **db** (port 5432) -- Postgres 16, initialized with `init.sql` schema
+- **rest** (port 3000) -- PostgREST v12, provides REST API for Supabase client, `classgen_api` role
+- **redis** (port 6379) -- Redis 7 with AOF persistence, 128MB LRU cache
 
-The app auto-connects to PostgREST as its Supabase backend via env vars set in compose.
+The app auto-connects to PostgREST as its Supabase backend via env vars set in compose. Migrations must be run after first boot or schema changes.
 
 ### Additional fixes (2026-03-16, session 2)
 
@@ -145,28 +146,60 @@ The app auto-connects to PostgREST as its Supabase backend via env vars set in c
 - System prompt detects teacher's language automatically
 - Bilingual lesson packs on request
 
-### Architecture (V3.0)
+### Architecture (V3.1)
 
 ```
-main.py          -- FastAPI app, endpoints, system prompt, LLM orchestration, usage quota
-commands.py      -- WhatsApp command router (16 commands)
-db.py            -- Data access layer (sessions, teachers, schools, homework, quizzes, lessons, cache, parents)
-utils.py         -- OpenRouter LLM client + homework code generator
-billing.py       -- Usage tracking, subscription tiers, payment providers (Paystack, bank transfer)
-curriculum.py    -- WAEC topic lists, suggest/covered logic
-jobs.py          -- Async batch job queue (Redis + in-memory fallback)
-messaging.py     -- Outbound Twilio WhatsApp messaging
-pdf_generator.py -- Lesson PDFs + combined week-pack PDFs
-worksheet.py     -- Printable worksheets (bingo, fill-in-blank, flashcards)
-templates/       -- Jinja2: base.html, profile.html, admin.html
-index.html       -- Web chat UI
-homework.html    -- Student quiz page
-results.html     -- Teacher results dashboard
+main.py              -- FastAPI app, endpoints, system prompt, LLM orchestration, usage quota
+commands.py          -- WhatsApp command router (16 commands)
+db.py                -- Data access layer (10 tables, Supabase/PostgREST + in-memory fallback)
+utils.py             -- OpenRouter LLM client + homework code generator
+billing.py           -- Usage tracking, subscription tiers, payment providers (Paystack, bank transfer)
+curriculum.py        -- WAEC topic lists, suggest/covered logic
+jobs.py              -- Async batch job queue (Redis + in-memory fallback)
+messaging.py         -- Outbound Twilio WhatsApp messaging
+pdf_generator.py     -- Lesson PDFs + combined week-pack PDFs
+worksheet.py         -- Printable worksheets (bingo, fill-in-blank, flashcards)
+migrations/          -- SQL migrations + runner (psycopg direct to Postgres)
+templates/           -- Jinja2: base.html, profile.html, admin.html
+index.html           -- Web chat UI
+homework.html        -- Student quiz page
+results.html         -- Teacher results dashboard
+init.sql             -- Base schema + classgen_api role (loaded by Postgres on first boot)
 ```
+
+See [DATABASE.md](DATABASE.md) for schema details, migration workflow, and storage strategy.
+
+### V3.1 -- Production Database & Infrastructure (2026-04-02)
+
+**Database layer:**
+- Added Postgres 16 + PostgREST to production (was in-memory only, breaking homework codes)
+- Created `classgen_api` least-privilege role (was running PostgREST as `postgres` superuser)
+- Generated strong Postgres password + JWT secret (was using hardcoded defaults)
+- Compose now requires `--env-file deploy/.env.prod` (fail-fast on missing secrets)
+
+**Migration tooling:**
+- `migrations/runner.py` -- lightweight SQL migration runner (~75 lines, `psycopg` direct connection)
+- Tracks applied migrations in `_migrations` table
+- Migration 002: added `updated_at` columns + auto-update triggers to 6 mutable tables
+
+**Timestamp semantics fix:**
+- `created_at` now set by DB `DEFAULT now()`, never sent by application code on upserts
+- `updated_at` auto-managed by `set_updated_at()` Postgres trigger on UPDATE
+- Fixed: `save_teacher()`, `save_subscription()`, `cache_lesson()`, `save_school()`, `save_parent_subscription()`, `save_homework_code()`, `log_lesson_generated()`, `log_usage()` -- all stopped overwriting `created_at` on upsert
+
+**Foreign key cleanup:**
+- Dropped FKs on `homework_codes.teacher_phone` and `lesson_history.teacher_phone` -- unregistered WhatsApp teachers could generate lessons but FK violations silently dropped homework codes
+
+**Frontend:**
+- Added emoji favicon (globe SVG, matching dater.world)
+- Breadcrumbs truncated to ~20 chars, limited to first 5 items (was full message text, last 4)
+
+**Bug fix:**
+- OpenRouter API key rotated on production (was returning 401 "User not found")
 
 ## What's Next
 
-- Generate 3 sample packs and test with 5 real teachers
-- Deploy to production (Supabase + domain + Twilio)
 - Seed curriculum data for additional exam boards (NECO, Cambridge)
 - Migrate homework.html and results.html to Jinja2 templates
+- Add circuit-breaker / retry on PostgREST errors (currently silently drops writes)
+- Create dedicated Postgres `web_anon` role for unauthenticated PostgREST access vs `classgen_api` for app
