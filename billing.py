@@ -61,9 +61,9 @@ def log_usage(teacher_phone: str, action: str = "lesson"):
     record = {
         "teacher_phone": teacher_phone,
         "action": action,
-        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if not supabase:
+        record["created_at"] = datetime.now(timezone.utc).isoformat()
         _mem_usage.setdefault(teacher_phone, []).append(record)
         return
     try:
@@ -157,9 +157,9 @@ def save_subscription(teacher_phone: str, tier: str, payment_ref: str = "",
         "status": "active",
         "payment_ref": payment_ref,
         "school_phone": school_phone,
-        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if not supabase:
+        record["created_at"] = datetime.now(timezone.utc).isoformat()
         _mem_subscriptions[teacher_phone] = record
         print(f"[local] Subscription {tier} for {teacher_phone}")
         return True

@@ -102,12 +102,12 @@ def save_homework_code(code: str, thread_id: str, lesson_content: str,
         "lesson_content": lesson_content,
         "quiz_questions": quiz_questions,
         "homework_block": homework_block,
-        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if teacher_phone:
         record["teacher_phone"] = teacher_phone
 
     if not supabase:
+        record["created_at"] = datetime.now(timezone.utc).isoformat()
         _mem_homework[code] = record
         print(f"[local] Saved homework code {code}")
         return True
@@ -238,9 +238,9 @@ def save_teacher(phone: str, name: str, school: str = "",
         "school": school,
         "school_slug": school_slug,
         "classes": [],
-        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if not supabase:
+        record["created_at"] = datetime.now(timezone.utc).isoformat()
         existing = _mem_teachers.get(phone)
         if existing:
             existing["name"] = name
@@ -304,6 +304,58 @@ def add_teacher_class(phone: str, class_name: str) -> bool:
         return False
 
 
+def remove_teacher_class(phone: str, class_name: str) -> bool:
+    """Remove a class from a teacher's class list."""
+    teacher = get_teacher_by_phone(phone)
+    if not teacher:
+        return False
+    classes = [c for c in teacher.get("classes", []) if c != class_name]
+    if not supabase:
+        teacher["classes"] = classes
+        return True
+    try:
+        supabase.table("teachers").update({"classes": classes}).eq("phone", phone).execute()
+        return True
+    except Exception as e:
+        print(f"Error removing class: {e}")
+        return False
+
+
+def update_teacher_name(phone: str, new_name: str) -> dict | None:
+    """Update a teacher's name and regenerate slug."""
+    teacher = get_teacher_by_phone(phone)
+    if not teacher:
+        return None
+    new_slug = _unique_slug(_make_slug(new_name), phone)
+    if not supabase:
+        teacher["name"] = new_name
+        teacher["slug"] = new_slug
+        return teacher
+    try:
+        supabase.table("teachers").update({
+            "name": new_name, "slug": new_slug,
+        }).eq("phone", phone).execute()
+        teacher["name"] = new_name
+        teacher["slug"] = new_slug
+        return teacher
+    except Exception as e:
+        print(f"Error updating teacher name: {e}")
+        return None
+
+
+def clear_session_history(thread_id: str) -> bool:
+    """Delete all session records for a thread."""
+    if not supabase:
+        _mem_sessions[:] = [s for s in _mem_sessions if s["thread_id"] != thread_id]
+        return True
+    try:
+        supabase.table("sessions").delete().eq("thread_id", thread_id).execute()
+        return True
+    except Exception as e:
+        print(f"Error clearing session history: {e}")
+        return False
+
+
 # --- Student Progress (V2.1) ---
 
 def get_student_progress(student_name: str, student_class: str) -> list:
@@ -330,6 +382,58 @@ def get_student_progress(student_name: str, student_class: str) -> list:
         return []
 
 
+def count_quiz_submissions_for_codes(codes: list[str]) -> int:
+    """Count total quiz submissions across a list of homework codes."""
+    if not supabase:
+        return sum(len(_mem_submissions.get(c, [])) for c in codes)
+    try:
+        total = 0
+        # Query in batches to avoid overly long filters
+        for c in codes:
+            resp = supabase.table("quiz_submissions").select("homework_code", count="exact").eq("homework_code", c).execute()
+            total += resp.count if resp.count else len(resp.data)
+        return total
+    except Exception as e:
+        print(f"Error counting quiz submissions: {e}")
+        return 0
+
+
+def get_teacher_lesson_stats(teacher_phone: str) -> dict:
+    """Count lessons generated: total, this week, this month."""
+    now = datetime.now(timezone.utc)
+    week_start = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    if not supabase:
+        codes = [hw for hw in _mem_homework.values()
+                 if hw.get("teacher_phone") == teacher_phone]
+        total = len(codes)
+        this_week = sum(1 for hw in codes
+                        if hw.get("created_at", "") >= week_start.isoformat())
+        this_month = sum(1 for hw in codes
+                         if hw.get("created_at", "") >= month_start.isoformat())
+        return {"total": total, "this_week": this_week, "this_month": this_month}
+    try:
+        resp = (
+            supabase.table("homework_codes")
+            .select("created_at")
+            .eq("teacher_phone", teacher_phone)
+            .execute()
+        )
+        all_codes = resp.data
+        total = len(all_codes)
+        this_week = sum(1 for hw in all_codes
+                        if hw.get("created_at", "") >= week_start.isoformat())
+        this_month = sum(1 for hw in all_codes
+                         if hw.get("created_at", "") >= month_start.isoformat())
+        return {"total": total, "this_week": this_week, "this_month": this_month}
+    except Exception as e:
+        print(f"Error getting teacher stats: {e}")
+        return {"total": 0, "this_week": 0, "this_month": 0}
+
+
 def get_class_leaderboard(homework_code: str, limit: int = 10) -> list:
     """Get top-scoring students for a homework code."""
     submissions = get_quiz_results(homework_code)
@@ -352,9 +456,9 @@ def save_parent_subscription(parent_phone: str, teacher_phone: str,
         "teacher_phone": teacher_phone,
         "student_name": student_name,
         "student_class": student_class,
-        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if not supabase:
+        record["created_at"] = datetime.now(timezone.utc).isoformat()
         _mem_parent_subs[key] = record
         print(f"[local] Parent {parent_phone} subscribed to {student_class}")
         return True
@@ -413,9 +517,9 @@ def log_lesson_generated(teacher_phone: str, subject: str, topic: str,
         "topic": topic,
         "class_level": class_level,
         "exam_board": exam_board,
-        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if not supabase:
+        record["created_at"] = datetime.now(timezone.utc).isoformat()
         _mem_lesson_history.append(record)
         return
     try:
@@ -494,7 +598,6 @@ def cache_lesson(subject: str, topic: str, class_level: str,
             "class_level": class_level,
             "exam_board": exam_board,
             "content": content,
-            "created_at": datetime.now(timezone.utc).isoformat(),
         }, on_conflict="cache_key").execute()
     except Exception as e:
         print(f"Error caching lesson: {e}")
@@ -511,9 +614,9 @@ def save_school(slug: str, name: str, admin_phone: str) -> dict:
         "slug": slug,
         "name": name,
         "admin_phone": admin_phone,
-        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if not supabase:
+        record["created_at"] = datetime.now(timezone.utc).isoformat()
         _mem_schools[slug] = record
         print(f"[local] Created school {name}")
         return record
