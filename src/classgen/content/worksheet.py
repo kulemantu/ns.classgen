@@ -10,12 +10,19 @@ These are different from lesson PDFs -- they're designed for students
 to write on, cut out, or play with.
 """
 
+from __future__ import annotations
+
 import os
 import uuid
+from pathlib import Path
+
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 
-static_dir = os.path.join(os.path.dirname(__file__), "static")
+static_dir = os.environ.get(
+    "STATIC_DIR",
+    str(Path(__file__).resolve().parents[3] / "static"),
+)
 
 
 def _sanitize(text: str) -> str:

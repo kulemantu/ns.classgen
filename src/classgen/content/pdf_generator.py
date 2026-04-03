@@ -1,12 +1,19 @@
+from __future__ import annotations
+
 import os
-import uuid
 import re
+import uuid
 from datetime import datetime
+from pathlib import Path
+
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 
 # Create static directory if it doesn't exist
-static_dir = os.path.join(os.path.dirname(__file__), "static")
+static_dir = os.environ.get(
+    "STATIC_DIR",
+    str(Path(__file__).resolve().parents[3] / "static"),
+)
 os.makedirs(static_dir, exist_ok=True)
 
 class ClassGenPDF(FPDF):
@@ -29,7 +36,8 @@ class ClassGenPDF(FPDF):
             self.cell(0, 6, self._subtitle, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
         self.set_font("helvetica", size=8)
         self.set_text_color(128, 128, 128)
-        self.cell(0, 6, f"Generated {datetime.now().strftime('%d %b %Y')}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+        date_str = f"Generated {datetime.now().strftime('%d %b %Y')}"
+        self.cell(0, 6, date_str, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
         self.set_text_color(0, 0, 0)
         self.ln(6)
 
