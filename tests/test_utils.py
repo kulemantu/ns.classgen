@@ -30,6 +30,7 @@ async def test_call_openrouter_failure():
         mock_create.side_effect = Exception("API Down")
         response = await call_openrouter("sys prompt", "user prompt")
         assert response is None
+        mock_create.assert_called_once()
 
 
 def test_log_session_no_supabase():

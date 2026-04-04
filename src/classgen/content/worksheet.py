@@ -19,10 +19,8 @@ from pathlib import Path
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 
-static_dir = os.environ.get(
-    "STATIC_DIR",
-    str(Path(__file__).resolve().parents[3] / "static"),
-)
+_APP_ROOT = Path(os.environ.get("APP_ROOT", str(Path(__file__).resolve().parents[3])))
+static_dir = os.environ.get("STATIC_DIR", str(_APP_ROOT / "static"))
 
 
 def _sanitize(text: str) -> str:

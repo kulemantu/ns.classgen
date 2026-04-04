@@ -10,10 +10,8 @@ from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 
 # Create static directory if it doesn't exist
-static_dir = os.environ.get(
-    "STATIC_DIR",
-    str(Path(__file__).resolve().parents[3] / "static"),
-)
+_APP_ROOT = Path(os.environ.get("APP_ROOT", str(Path(__file__).resolve().parents[3])))
+static_dir = os.environ.get("STATIC_DIR", str(_APP_ROOT / "static"))
 os.makedirs(static_dir, exist_ok=True)
 
 class ClassGenPDF(FPDF):
