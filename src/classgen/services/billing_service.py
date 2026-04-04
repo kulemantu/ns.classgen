@@ -8,29 +8,19 @@ Provider-agnostic billing layer. Supports:
 Usage is tracked before billing -- teachers see value before hitting the paywall.
 """
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from db import supabase
-from i18n import DEFAULT_CURRENCY, format_currency_short
+from __future__ import annotations
 
-# --- Subscription tiers ---
-# Prices keyed by ISO currency code. Add new currencies here.
-
-TIER_PRICES = {
-    "free":    {"NGN": 0,    "KES": 0,    "USD": 0},
-    "premium": {"NGN": 2000, "KES": 500,  "USD": 3},
-    "school":  {"NGN": 5000, "KES": 1200, "USD": 7},
-}
-
-TIERS = {
-    "free": {"name": "Free", "lessons_per_week": 5},
-    "premium": {"name": "Premium", "lessons_per_week": -1},  # -1 = unlimited
-    "school": {"name": "School", "lessons_per_week": -1, "per_seat": True},
-}
+from classgen.core.billing import TIERS, UsageCheck
+from classgen.data.subscriptions import (
+    get_subscription,
+    get_weekly_usage,
+)
+from classgen.i18n import DEFAULT_CURRENCY, format_currency_short
 
 
 def get_price(tier: str, currency: str = DEFAULT_CURRENCY) -> int:
     """Get the price for a tier in the given currency."""
+    from classgen.core.billing import TIER_PRICES
     return TIER_PRICES.get(tier, TIER_PRICES["free"]).get(currency.upper(), 0)
 
 
@@ -40,89 +30,6 @@ def format_price(amount: int, currency: str = DEFAULT_CURRENCY) -> str:
     Uses short format (no decimals) for cleaner WhatsApp messages.
     """
     return format_currency_short(amount, currency)
-
-# In-memory stores for local dev
-_mem_usage: dict[str, list] = {}
-_mem_subscriptions: dict[str, dict] = {}
-
-
-@dataclass
-class UsageCheck:
-    allowed: bool
-    remaining: int  # -1 = unlimited
-    tier: str
-    message: str = ""
-
-
-# --- Usage tracking ---
-
-def log_usage(teacher_phone: str, action: str = "lesson"):
-    """Log a usage event (lesson generated, quiz created, etc.)."""
-    record = {
-        "teacher_phone": teacher_phone,
-        "action": action,
-    }
-    if not supabase:
-        record["created_at"] = datetime.now(timezone.utc).isoformat()
-        _mem_usage.setdefault(teacher_phone, []).append(record)
-        return
-    try:
-        supabase.table("usage_log").insert(record).execute()
-    except Exception as e:
-        print(f"Error logging usage: {e}")
-
-
-def get_weekly_usage(teacher_phone: str) -> int:
-    """Count lessons generated this week."""
-    now = datetime.now(timezone.utc)
-    # Monday of this week (safe across month boundaries)
-    week_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=now.weekday())
-    week_start_iso = week_start.isoformat()
-
-    if not supabase:
-        events = _mem_usage.get(teacher_phone, [])
-        return sum(1 for e in events
-                   if e.get("action") == "lesson"
-                   and (e.get("created_at") or "") >= week_start_iso)
-    try:
-        response = (
-            supabase.table("usage_log")
-            .select("id", count="exact")
-            .eq("teacher_phone", teacher_phone)
-            .eq("action", "lesson")
-            .gte("created_at", week_start_iso)
-            .execute()
-        )
-        return response.count or 0
-    except Exception as e:
-        print(f"Error getting usage: {e}")
-        return 0
-
-
-# --- Subscriptions ---
-
-def get_subscription(teacher_phone: str) -> dict:
-    """Get a teacher's subscription tier. Defaults to free."""
-    if not supabase:
-        return _mem_subscriptions.get(teacher_phone, {
-            "teacher_phone": teacher_phone,
-            "tier": "free",
-            "status": "active",
-        })
-    try:
-        response = (
-            supabase.table("subscriptions")
-            .select("*")
-            .eq("teacher_phone", teacher_phone)
-            .eq("status", "active")
-            .limit(1)
-            .execute()
-        )
-        if response.data:
-            return response.data[0]
-    except Exception as e:
-        print(f"Error getting subscription: {e}")
-    return {"teacher_phone": teacher_phone, "tier": "free", "status": "active"}
 
 
 def check_usage(teacher_phone: str) -> UsageCheck:
@@ -146,31 +53,6 @@ def check_usage(teacher_phone: str) -> UsageCheck:
         )
 
     return UsageCheck(allowed=True, remaining=remaining, tier=tier_name)
-
-
-def save_subscription(teacher_phone: str, tier: str, payment_ref: str = "",
-                      school_phone: str = "") -> bool:
-    """Create or update a subscription."""
-    record = {
-        "teacher_phone": teacher_phone,
-        "tier": tier,
-        "status": "active",
-        "payment_ref": payment_ref,
-        "school_phone": school_phone,
-    }
-    if not supabase:
-        record["created_at"] = datetime.now(timezone.utc).isoformat()
-        _mem_subscriptions[teacher_phone] = record
-        print(f"[local] Subscription {tier} for {teacher_phone}")
-        return True
-    try:
-        supabase.table("subscriptions").upsert(
-            record, on_conflict="teacher_phone"
-        ).execute()
-        return True
-    except Exception as e:
-        print(f"Error saving subscription: {e}")
-        return False
 
 
 # --- Payment providers ---

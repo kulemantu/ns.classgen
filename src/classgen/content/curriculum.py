@@ -7,6 +7,8 @@ option to request any topic on demand.
 Data sourced from WAEC/NECO syllabi (West Africa). KNEC/KCSE topics (East Africa) to be added.
 """
 
+from __future__ import annotations
+
 # Curriculum data: {exam_board: {subject: {class: [topics]}}}
 # Start with WAEC SS1-SS3 core subjects. Expand over time.
 

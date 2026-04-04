@@ -12,8 +12,8 @@ Usage:
 """
 
 import os
-import sys
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -260,8 +260,8 @@ def compose_test(*args: str, check: bool = True, capture: bool = False,
 
 def wait_for_health_http(port: int, retries: int = 20, delay: float = 3.0) -> bool:
     """Poll the health endpoint directly via HTTP (no docker exec)."""
-    import urllib.request
     import urllib.error
+    import urllib.request
     for i in range(retries):
         try:
             resp = urllib.request.urlopen(f"http://localhost:{port}/health", timeout=3)
@@ -297,8 +297,8 @@ def cmd_test():
         log("App is healthy!")
 
         # Smoke tests
-        import urllib.request
         import json
+        import urllib.request
 
         # 1. Health endpoint
         resp = urllib.request.urlopen(f"http://localhost:{port}/health")

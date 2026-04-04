@@ -1,129 +1,40 @@
-"""WhatsApp command router for ClassGen.
+"""Command handler implementations for ClassGen.
 
-Parses incoming text against registered commands before falling through
-to the LLM lesson generator. Each handler returns a CommandResult or None
-(None means "not a command, pass to LLM").
+Each _cmd_* function handles a specific WhatsApp command and returns
+a CommandResult.
 """
 
+from __future__ import annotations
+
 import re
-from dataclasses import dataclass
-from db import (
-    save_teacher, get_teacher_by_phone, add_teacher_class,
-    list_homework_codes_for_teacher, get_quiz_results,
-    get_class_leaderboard, get_student_progress,
-    save_parent_subscription, get_covered_topics,
-    log_session, set_active_thread,
-    get_teacher_lesson_stats,
+import time
+
+from classgen.commands.router import CommandResult
+from classgen.content.curriculum import (
+    list_subjects,
+    parse_class_string,
+    suggest_topics,
 )
-from curriculum import suggest_topics, parse_class_string, list_subjects
-
-
-@dataclass
-class CommandResult:
-    reply: str
-    session_action: str | None = None  # "reset", "register", etc.
-    new_thread_id: str | None = None
-
-
-def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None:
-    """Try to match body against known commands. Returns None if not a command."""
-    text = body.strip()
-    lower = text.lower()
-
-    # --- Greetings (don't waste LLM tokens) ---
-    if lower in ("hi", "hello", "hey", "good morning", "good afternoon", "good evening"):
-        return CommandResult(
-            reply='Welcome to ClassGen! Send a topic to generate a lesson '
-                  '-- e.g. "SS2 Biology: Photosynthesis"\n\n'
-                  'Send "help" for all commands.'
-        )
-
-    # --- Session commands ---
-    if lower in ("new", "reset", "new lesson", "start over"):
-        return _cmd_reset(phone)
-
-    if lower in ("help", "commands", "menu"):
-        return _cmd_help(base_url)
-
-    # --- Teacher profile commands ---
-    if lower in ("register", "sign up", "signup"):
-        return _cmd_register_prompt(phone)
-
-    if lower.startswith("register ") or lower.startswith("i am "):
-        name = re.sub(r"^(register|i am)\s+", "", text, flags=re.IGNORECASE).strip()
-        return _cmd_register(phone, name, base_url)
-
-    if lower in ("my page", "my profile", "profile"):
-        return _cmd_my_page(phone, base_url)
-
-    if lower.startswith("add class:") or lower.startswith("add class "):
-        class_name = re.sub(r"^add class[:\s]+", "", text, flags=re.IGNORECASE).strip()
-        return _cmd_add_class(phone, class_name)
-
-    # --- Results commands ---
-    if lower in ("results", "my results"):
-        return CommandResult(reply="Send: results CODE\n\nExample: results MATH42\n\nOr send 'my codes' to see your homework codes.")
-
-    if lower.startswith("results ") or lower.startswith("my results "):
-        code = re.sub(r"^(my )?results\s+", "", text, flags=re.IGNORECASE).strip().upper()
-        return _cmd_results(phone, code, base_url)
-
-    if lower in ("my codes", "my homework", "codes"):
-        return _cmd_my_codes(phone, base_url)
-
-    # --- V2.1: Leaderboard, progress, parent, study ---
-    if lower in ("leaderboard", "top"):
-        return CommandResult(reply="Send: leaderboard CODE\n\nExample: leaderboard MATH42")
-
-    if lower.startswith("leaderboard ") or lower.startswith("top "):
-        code = re.sub(r"^(leaderboard|top)\s+", "", text, flags=re.IGNORECASE).strip().upper()
-        return _cmd_leaderboard(code)
-
-    if lower.startswith("progress "):
-        # "progress Amina SS2" -> student name + class
-        parts = re.sub(r"^progress\s+", "", text, flags=re.IGNORECASE).strip()
-        return _cmd_student_progress(parts)
-
-    if lower.startswith("subscribe parent"):
-        # "subscribe parent +234... Amina SS2 Biology"
-        args = re.sub(r"^subscribe parent\s*", "", text, flags=re.IGNORECASE).strip()
-        return _cmd_subscribe_parent(phone, args)
-
-    if lower in ("stats", "my stats", "statistics"):
-        return _cmd_stats(phone, base_url)
-
-    if lower.startswith("log "):
-        code = re.sub(r"^log\s+", "", text, flags=re.IGNORECASE).strip().upper()
-        return _cmd_submission_log(code)
-
-    if lower.startswith("confirm "):
-        ref = re.sub(r"^confirm\s+", "", text, flags=re.IGNORECASE).strip()
-        return CommandResult(
-            reply=f"Payment reference *{ref}* noted. "
-                  "Our team will verify and activate your subscription within 24 hours."
-        )
-
-    if lower.startswith("study "):
-        topic = re.sub(r"^study\s+", "", text, flags=re.IGNORECASE).strip()
-        return _cmd_study_mode(topic)
-
-    # --- V3.0a: Curriculum assist ---
-    if lower.startswith("suggest ") or lower == "suggest":
-        class_name = re.sub(r"^suggest\s*", "", text, flags=re.IGNORECASE).strip()
-        return _cmd_suggest(phone, class_name)
-
-    if lower.startswith("covered "):
-        class_name = re.sub(r"^covered\s+", "", text, flags=re.IGNORECASE).strip()
-        return _cmd_covered(phone, class_name)
-
-    # Not a command — fall through to LLM
-    return None
-
+from classgen.data.homework import list_homework_codes_for_teacher
+from classgen.data.lessons import get_covered_topics
+from classgen.data.parents import save_parent_subscription
+from classgen.data.quiz import (
+    get_class_leaderboard,
+    get_quiz_results,
+    get_student_progress,
+)
+from classgen.data.sessions import log_session
+from classgen.data.teachers import (
+    add_teacher_class,
+    get_teacher_by_phone,
+    get_teacher_lesson_stats,
+    save_teacher,
+)
+from classgen.data.threads import set_active_thread
 
 # --- Command implementations ---
 
 def _cmd_reset(phone: str) -> CommandResult:
-    import time
     new_id = f"{phone}_{int(time.time())}"
     set_active_thread(phone, new_id)
     log_session(new_id, "system", "Session reset by teacher.")
@@ -198,7 +109,11 @@ def _cmd_my_page(phone: str, base_url: str) -> CommandResult:
         )
     slug = teacher.get("slug", "")
     return CommandResult(
-        reply=f"Your profile: {base_url}/t/{slug}\n\nClasses: {', '.join(teacher.get('classes', [])) or 'none yet'}\n\nSend 'add class: SS2 Biology' to add classes."
+        reply=(
+            f"Your profile: {base_url}/t/{slug}\n\n"
+            f"Classes: {', '.join(teacher.get('classes', [])) or 'none yet'}\n\n"
+            f"Send 'add class: SS2 Biology' to add classes."
+        )
     )
 
 
@@ -221,7 +136,10 @@ def _cmd_results(phone: str, code: str, base_url: str) -> CommandResult:
         return CommandResult(reply="Send: results CODE\n\nExample: results MATH42")
     results = get_quiz_results(code)
     if not results:
-        return CommandResult(reply=f"No submissions yet for *{code}*.\n\nView online: {base_url}/h/{code}/results")
+        return CommandResult(
+            reply=f"No submissions yet for *{code}*.\n\n"
+            f"View online: {base_url}/h/{code}/results"
+        )
     total = len(results)
     avg = sum(r.get("score", 0) for r in results) / total
     return CommandResult(
@@ -257,7 +175,7 @@ def _cmd_leaderboard(code: str) -> CommandResult:
         return CommandResult(reply=f"No submissions yet for *{code}*.")
     lines = [f"*Leaderboard for {code}*\n"]
     for i, s in enumerate(ranked, 1):
-        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f"{i}.")
+        medal = {1: "\U0001f947", 2: "\U0001f948", 3: "\U0001f949"}.get(i, f"{i}.")
         name = s.get("student_name", "?")
         score = s.get("score", 0)
         total = s.get("total", 5)

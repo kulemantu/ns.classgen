@@ -1,10 +1,13 @@
 """OpenRouter LLM client and utility functions."""
 
+from __future__ import annotations
+
 import os
 import random
 import string
-from openai import AsyncOpenAI
+
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
 load_dotenv()
 

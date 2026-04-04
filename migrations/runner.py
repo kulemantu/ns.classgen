@@ -63,7 +63,7 @@ def run():
             conn.execute(sql)
             conn.execute("INSERT INTO _migrations (name) VALUES (%s)", [f.stem])
             conn.commit()
-            print(f"  OK")
+            print("  OK")
         except Exception as e:
             conn.rollback()
             print(f"  FAILED: {e}", file=sys.stderr)

@@ -4,7 +4,10 @@ Handles proactive messages to teachers and parents (not webhook responses).
 Used for: quiz result summaries, parent digests, study mode replies.
 """
 
+from __future__ import annotations
+
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -31,7 +34,10 @@ def send_whatsapp(to: str, body: str) -> bool:
         return False
     try:
         to_wa = to if to.startswith("whatsapp:") else f"whatsapp:{to}"
-        from_wa = _from_number if _from_number.startswith("whatsapp:") else f"whatsapp:{_from_number}"
+        from_wa = (
+            _from_number if _from_number.startswith("whatsapp:")
+            else f"whatsapp:{_from_number}"
+        )
         _client.messages.create(body=body, from_=from_wa, to=to_wa)
         return True
     except Exception as e:

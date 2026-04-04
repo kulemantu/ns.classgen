@@ -6,12 +6,16 @@ Locale is inferred from the teacher's phone country code when available.
 Supported currencies: NGN, KES, USD (add more in PHONE_LOCALES).
 """
 
-from babel.numbers import format_currency as _babel_format_currency
-from babel.dates import format_date as _babel_format_date, format_datetime as _babel_format_datetime
+from __future__ import annotations
+
 import datetime
 
-# Phone country-code → (babel locale, default currency)
-# Sorted longest-prefix-first at lookup time so +2547… beats +25…
+from babel.dates import format_date as _babel_format_date
+from babel.dates import format_datetime as _babel_format_datetime
+from babel.numbers import format_currency as _babel_format_currency
+
+# Phone country-code -> (babel locale, default currency)
+# Sorted longest-prefix-first at lookup time so +2547... beats +25...
 PHONE_LOCALES: dict[str, tuple[str, str]] = {
     "+234": ("en_NG", "NGN"),   # Nigeria
     "+254": ("en_KE", "KES"),   # Kenya
@@ -61,7 +65,7 @@ def format_currency(amount: float | int, currency: str,
     """Format an amount with locale-aware currency symbol and grouping.
 
     >>> format_currency(2000, "NGN")
-    '₦2,000.00'
+    '\u20a62,000.00'
     >>> format_currency(500, "KES", locale="en_KE")
     'Ksh\\xa0500.00'
     """
@@ -76,7 +80,7 @@ def format_currency_short(amount: float | int, currency: str) -> str:
     Uses the currency's native locale so the right symbol appears.
 
     >>> format_currency_short(2000, "NGN")
-    '₦2,000'
+    '\u20a62,000'
     >>> format_currency_short(500, "KES")
     'Ksh500'
     >>> format_currency_short(3, "USD")

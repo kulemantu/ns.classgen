@@ -1,13 +1,15 @@
-"""Async job queue for ClassGen.
+"""Redis-backed job queue for ClassGen batch operations.
 
-Handles batch lesson generation and scheduled tasks.
+Handles batch lesson generation job tracking.
 Uses in-memory queue for local dev, Redis for production.
 """
 
-import os
+from __future__ import annotations
+
 import json
-import asyncio
+import os
 from dataclasses import dataclass, field
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -87,39 +89,3 @@ def update_batch_job(job_id: str, completed: int, status: str = "running",
         _redis.set(f"batch:{job_id}", json.dumps(job), ex=3600)
     else:
         _mem_results[job_id] = job
-
-
-async def run_batch_generation(job_id: str, teacher_phone: str,
-                               topics: list[dict], generate_fn) -> dict:
-    """Run batch lesson generation. generate_fn is the async lesson generator.
-
-    Each topic dict has: {class_level, subject, topic}
-    Returns the completed job dict.
-    """
-    update_batch_job(job_id, 0, "running")
-
-    for i, t in enumerate(topics):
-        msg = f"{t['class_level']} {t['subject']}: {t['topic']}"
-        try:
-            reply, pdf_url, hw_code = await generate_fn(
-                msg, teacher_phone, teacher_phone=teacher_phone
-            )
-            update_batch_job(job_id, i + 1, "running", {
-                "topic": t["topic"],
-                "subject": t["subject"],
-                "class_level": t["class_level"],
-                "pdf_url": pdf_url,
-                "homework_code": hw_code,
-                "success": bool(reply and "[BLOCK_START_" in reply),
-            })
-        except Exception as e:
-            update_batch_job(job_id, i + 1, "running", {
-                "topic": t["topic"],
-                "error": str(e),
-                "success": False,
-            })
-        # Small delay between LLM calls to avoid rate limiting
-        await asyncio.sleep(1)
-
-    update_batch_job(job_id, len(topics), "completed")
-    return get_batch_job(job_id) or {}

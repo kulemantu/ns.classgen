@@ -1,7 +1,8 @@
 import asyncio
-import httpx
 import time
 import uuid
+
+import httpx
 
 API_URL = "http://localhost:8000/api/chat"
 WEBHOOK_URL = "http://localhost:8000/webhook/twilio"

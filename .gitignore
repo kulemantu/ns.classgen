@@ -31,3 +31,7 @@ static/*.pdf
 .local/
 .sessions/
 WORKING-SESSION*.md
+
+# Scratch directories that may contain credentials or large files
+scratch/scripts/
+scratch/perf/
