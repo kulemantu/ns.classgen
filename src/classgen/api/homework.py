@@ -10,6 +10,7 @@ Routes:
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -26,8 +27,7 @@ from classgen.services.notification_service import notify_quiz_submission
 
 router = APIRouter()
 
-# Resolve paths relative to the project root (3 parents up from this file).
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_APP_ROOT = Path(os.environ.get("APP_ROOT", str(Path(__file__).resolve().parents[3])))
 
 
 @router.get("/h/{code}", response_class=HTMLResponse)
@@ -39,7 +39,7 @@ async def homework_page(code: str):
             "<h1>Homework code not found</h1><p>Check the code and try again.</p>",
             status_code=404,
         )
-    homework_path = _PROJECT_ROOT / "homework.html"
+    homework_path = _APP_ROOT / "homework.html"
     if not homework_path.exists():
         return HTMLResponse("<h1>Quiz page not available</h1>", status_code=500)
     return FileResponse(str(homework_path))
@@ -132,7 +132,7 @@ async def homework_results_page(code: str):
             "<h1>Homework code not found</h1><p>Check the code and try again.</p>",
             status_code=404,
         )
-    results_path = _PROJECT_ROOT / "results.html"
+    results_path = _APP_ROOT / "results.html"
     if not results_path.exists():
         return HTMLResponse("<h1>Results page not available</h1>", status_code=500)
     return FileResponse(str(results_path))

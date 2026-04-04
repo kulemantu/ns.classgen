@@ -20,16 +20,14 @@ from fastapi.templating import Jinja2Templates
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Path resolution -- project root is 3 parents up from src/classgen/api/
+# Path resolution — use APP_ROOT env var (set in Docker) or infer from
+# __file__ for local dev (3 parents up from src/classgen/api/).
 # ---------------------------------------------------------------------------
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_APP_ROOT = Path(os.environ.get("APP_ROOT", str(Path(__file__).resolve().parents[3])))
 
-_templates_dir = os.environ.get(
-    "TEMPLATES_DIR",
-    str(_PROJECT_ROOT / "templates"),
-)
-_static_dir = str(_PROJECT_ROOT / "static")
+_templates_dir = str(_APP_ROOT / "templates")
+_static_dir = str(_APP_ROOT / "static")
 
 # Ensure static dir exists
 os.makedirs(_static_dir, exist_ok=True)
@@ -82,7 +80,7 @@ app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    index_path = _PROJECT_ROOT / "index.html"
+    index_path = _APP_ROOT / "index.html"
     if index_path.exists():
         return FileResponse(str(index_path))
     return HTMLResponse(
