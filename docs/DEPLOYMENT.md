@@ -94,7 +94,7 @@ Stored in `deploy/.env.prod` on the server (not in git). See `deploy/.env.prod.e
 
 **Optional:** `TWILIO_*` (WhatsApp), `VAPID_*` (push notifications), `PAYSTACK_SECRET_KEY` (billing)
 
-**Set automatically by compose:** `SUPABASE_URL`, `REDIS_URL`, `DATABASE_URL`
+**Set automatically by compose:** `SUPABASE_URL`, `REDIS_URL`, `DATABASE_URL`, `APP_ROOT`
 
 ## Logs & Debugging
 
@@ -129,6 +129,35 @@ docker exec -it classgen-db psql -U postgres -d classgen
 | `flow.dater.world` | `/var/www/flow.dater.world` | n8n automation |
 | `ag.dater.world` | `/var/www/ag.dater.world` | Agent |
 | `qd.dater.world` | `/var/www/qd.dater.world` | Qdrant |
+
+## Local Staging (before production deploy)
+
+Always run a full Docker staging locally before deploying to production. Unit tests miss Docker-specific failures (path resolution, JWT signatures, build ordering).
+
+```bash
+# Clean slate
+docker compose down -v
+docker compose up -d --build
+
+# Run migrations
+docker compose exec app /app/.venv/bin/python -m migrations.runner
+
+# Staging checklist
+curl http://localhost:8000/health
+
+# DB write
+curl -X POST http://localhost:8000/api/teacher/register \
+  -H 'Content-Type: application/json' \
+  -d '{"thread_id":"stg_t1","name":"Mrs. Staging"}'
+
+# DB read
+curl "http://localhost:8000/api/teacher/profile?thread_id=stg_t1"
+
+# LLM + PDF + homework
+curl -X POST http://localhost:8000/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"SS2 Biology: Photosynthesis","thread_id":"stg_t1"}'
+```
 
 ## History
 

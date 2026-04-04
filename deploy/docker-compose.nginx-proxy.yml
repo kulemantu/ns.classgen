@@ -23,9 +23,10 @@ services:
       - LETSENCRYPT_HOST=${LETSENCRYPT_HOST:-class.dater.world}
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-admin@dater.world}
       - SUPABASE_URL=http://rest:3000
-      - SUPABASE_KEY=${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.ZopqoUt20nEV9cklpv9e3yCwind2FvMNT8CDGaHU-BI}
+      - SUPABASE_KEY=${SUPABASE_ANON_KEY:?Set SUPABASE_ANON_KEY in .env.prod}
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.prod}@db:5432/classgen
+      - APP_ROOT=/app
     depends_on:
       db:
         condition: service_healthy

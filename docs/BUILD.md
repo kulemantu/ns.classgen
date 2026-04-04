@@ -197,9 +197,27 @@ See [DATABASE.md](DATABASE.md) for schema details, migration workflow, and stora
 **Bug fix:**
 - OpenRouter API key rotated on production (was returning 401 "User not found")
 
+### V4.0 — Project Restructure (2026-04-04, PR #1)
+
+**Restructure to `src/classgen/` package:**
+- Split 12 root Python files into 9 sub-packages under `src/classgen/`
+- Function-by-function verification: all 80+ functions ported identically
+- Found and fixed 2 prompt regressions (agent softened wording in system prompt)
+- 163 tests (102 new), 58% coverage, ruff clean
+- Old root `.py` files deleted — all tests pass without them
+
+**Docker staging fixes (v4.0-staging branch):**
+- Dockerfile: two-step `uv sync` for `src/` layout (`--no-install-project` first, then `--no-editable`)
+- Path resolution: `APP_ROOT=/app` env var for templates/static/HTML paths (non-editable installs put `__file__` in `site-packages/`)
+- JWT: regenerated for `classgen_api` role (was signed for `anon` role)
+- CI: Python 3.14 (was 3.12)
+
+**Staging test results:** 19/19 HTTP checks pass on Docker Compose, covering health, teacher registration, lesson generation, homework+quiz flow, PDF download, CSV export, WhatsApp webhook.
+
 ## What's Next
 
-- Seed curriculum data for additional exam boards (NECO, Cambridge)
-- Migrate homework.html and results.html to Jinja2 templates
-- Add circuit-breaker / retry on PostgREST errors (currently silently drops writes)
-- Create dedicated Postgres `web_anon` role for unauthenticated PostgREST access vs `classgen_api` for app
+See [ROADMAP.md](ROADMAP.md) for V4.1-V4.4 phases.
+
+**Immediate:** Merge v4.0-staging → master → deploy to production.
+
+**Next phase (V4.1):** Structured JSON output from LLM + channel adapters + SSE streaming. See [DESIGN-v4-structured-output.md](DESIGN-v4-structured-output.md).
