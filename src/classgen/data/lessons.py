@@ -80,7 +80,10 @@ def get_cached_lesson(subject: str, topic: str, class_level: str,
     """Check if a lesson for this exact tuple has been generated before."""
     key = _cache_key(subject, topic, class_level, exam_board)
     if not supabase:
-        return _mem_content_cache.get(key)
+        entry = _mem_content_cache.get(key)
+        if isinstance(entry, dict):
+            return entry.get("content")
+        return entry
     try:
         response = (
             supabase.table("lesson_cache")
@@ -95,21 +98,52 @@ def get_cached_lesson(subject: str, topic: str, class_level: str,
         return None
 
 
+def get_cached_lesson_json(subject: str, topic: str, class_level: str,
+                           exam_board: str = "WAEC") -> dict | None:
+    """Get the structured JSON for a cached lesson, if available."""
+    key = _cache_key(subject, topic, class_level, exam_board)
+    if not supabase:
+        entry = _mem_content_cache.get(key)
+        if isinstance(entry, dict):
+            return entry.get("lesson_json")
+        return None
+    try:
+        response = (
+            supabase.table("lesson_cache")
+            .select("lesson_json")
+            .eq("cache_key", key)
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            return response.data[0].get("lesson_json")
+        return None
+    except Exception as e:
+        print(f"Error checking content cache (JSON): {e}")
+        return None
+
+
 def cache_lesson(subject: str, topic: str, class_level: str,
-                 content: str, exam_board: str = "WAEC"):
+                 content: str, exam_board: str = "WAEC",
+                 lesson_json: dict | None = None):
     """Cache a generated lesson for reuse."""
     key = _cache_key(subject, topic, class_level, exam_board)
     if not supabase:
-        _mem_content_cache[key] = content
+        _mem_content_cache[key] = {"content": content, "lesson_json": lesson_json}
         return
     try:
-        supabase.table("lesson_cache").upsert({
+        record: dict = {
             "cache_key": key,
             "subject": subject,
             "topic": topic,
             "class_level": class_level,
             "exam_board": exam_board,
             "content": content,
-        }, on_conflict="cache_key").execute()
+        }
+        if lesson_json is not None:
+            record["lesson_json"] = lesson_json
+        supabase.table("lesson_cache").upsert(
+            record, on_conflict="cache_key"
+        ).execute()
     except Exception as e:
         print(f"Error caching lesson: {e}")

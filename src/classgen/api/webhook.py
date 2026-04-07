@@ -11,8 +11,10 @@ from twilio.request_validator import RequestValidator
 from twilio.twiml.messaging_response import MessagingResponse
 
 from classgen.api.chat import _generate_lesson, _has_lesson_blocks
+from classgen.channels.whatsapp import WhatsAppAdapter
 from classgen.commands.router import handle_command
 from classgen.content.prompts import CLASSGEN_SYSTEM_PROMPT
+from classgen.core.feature_flags import flags
 from classgen.data import get_active_thread
 from classgen.data.subscriptions import log_usage
 from classgen.services.billing_service import check_usage
@@ -133,15 +135,25 @@ async def twilio_webhook(request: Request):
         return Response(content=str(twiml_response), media_type="application/xml")
 
     thread_id = get_active_thread(phone)
-    ai_response_text, pdf_url, homework_code = await _generate_lesson(
+    ai_response_text, pdf_url, homework_code, lesson_pack = await _generate_lesson(
         body, thread_id, teacher_phone=phone
     )
-    if _has_lesson_blocks(ai_response_text):
+    has_content = (
+        _has_lesson_blocks(ai_response_text)
+        or (lesson_pack is not None and len(lesson_pack.blocks) > 0)
+    )
+    if has_content:
         log_usage(phone, "lesson")
 
     # Build WhatsApp-friendly reply (keep under 1500 chars to avoid truncation)
-    if _has_lesson_blocks(ai_response_text) and len(ai_response_text) > 1500:
-        reply_text = _whatsapp_summary(ai_response_text, homework_code, base_url)
+    if has_content and (len(ai_response_text) > 1500 or lesson_pack):
+        if lesson_pack and flags.structured_output:
+            wa_adapter = WhatsAppAdapter()
+            reply_text = wa_adapter.render_lesson(
+                lesson_pack, homework_code=homework_code, base_url=base_url
+            )
+        else:
+            reply_text = _whatsapp_summary(ai_response_text, homework_code, base_url)
     else:
         reply_text = ai_response_text
         if homework_code:

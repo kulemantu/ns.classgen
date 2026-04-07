@@ -51,11 +51,35 @@ async def homework_data(code: str):
     hw = get_homework_code(code.upper())
     if not hw:
         return JSONResponse({"error": "not_found"}, status_code=404)
-    return {
+
+    response: dict = {
         "code": hw["code"],
         "homework_block": hw["homework_block"],
         "quiz_questions": hw.get("quiz_questions", []),
     }
+
+    # Include structured lesson data when available
+    lesson_json = hw.get("lesson_json")
+    if lesson_json and isinstance(lesson_json, dict):
+        blocks = lesson_json.get("blocks", [])
+        if isinstance(blocks, list):
+            hw_block = next(
+                (b for b in blocks if isinstance(b, dict) and b.get("type") == "homework"),
+                None,
+            )
+            if hw_block:
+                # Explicitly whitelist fields — never expose assessment_tip,
+                # quiz answers, or teacher-facing data to students.
+                tasks = hw_block.get("tasks", [])
+                response["homework_structured"] = {
+                    "title": str(hw_block.get("title", "")),
+                    "narrative": str(hw_block.get("narrative", "")),
+                    "tasks": tasks if isinstance(tasks, list) else [],
+                    "format": str(hw_block.get("format", "")),
+                    "completion": str(hw_block.get("completion", "")),
+                }
+
+    return response
 
 
 @router.post("/h/{code}/submit")

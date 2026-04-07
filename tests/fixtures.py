@@ -1,0 +1,173 @@
+"""Shared test fixtures for V4.1 structured output tests."""
+
+import json
+
+# --- Structured JSON (V4.1) ---
+
+SAMPLE_LESSON_JSON_DICT = {
+    "version": "4.0",
+    "meta": {
+        "subject": "Biology",
+        "topic": "Photosynthesis",
+        "class_level": "SS2",
+        "exam_board": "WAEC",
+        "duration_minutes": 40,
+        "language": "en",
+        "bilingual": None,
+    },
+    "blocks": [
+        {
+            "type": "opener",
+            "title": "What if photosynthesis stopped tomorrow?",
+            "body": "Ask students: 'If every plant stopped making food from sunlight right now, how long before we feel it?'",
+            "format": "what_if",
+            "duration_minutes": 2,
+            "props": [],
+        },
+        {
+            "type": "explain",
+            "title": "The Factory Inside Every Leaf",
+            "body": "Think of each leaf as a tiny solar-powered factory that turns sunlight, water, and carbon dioxide into sugar and oxygen.",
+            "wow_fact": "A single tree produces enough oxygen for 2 people for a year.",
+            "analogy": "A leaf is like a solar-powered factory.",
+            "key_terms": [
+                {"term": "chlorophyll", "definition": "The green pigment that captures sunlight"},
+                {"term": "glucose", "definition": "The sugar plants make as food"},
+            ],
+            "equation": "6CO\u2082 + 6H\u2082O \u2192 C\u2086H\u2081\u2082O\u2086 + 6O\u2082",
+        },
+        {
+            "type": "activity",
+            "title": "Photosynthesis Relay Race",
+            "body": "Split class into teams of 5. Each team member must write one step of photosynthesis on the board in order.",
+            "format": "relay_race",
+            "group_size": 5,
+            "duration_minutes": 12,
+            "materials": ["exercise book", "pen", "chalk"],
+            "rules": ["No looking at notes", "Must write in correct order"],
+            "expected_outcome": "Each team correctly sequences the 6 steps of photosynthesis.",
+        },
+        {
+            "type": "homework",
+            "title": "The Oxygen Detective",
+            "body": "",
+            "format": "adventure",
+            "narrative": "You are a science detective hired by the Ministry of Agriculture...",
+            "tasks": [
+                {
+                    "id": "clue_1",
+                    "instruction": "Visit any garden near your home. Count different plants.",
+                    "type": "real_world",
+                    "clue": "The plant count is your first code digit.",
+                    "exercise_book_format": "List with sketches",
+                },
+                {
+                    "id": "clue_2",
+                    "instruction": "Calculate CO2 molecules needed for 3 glucose molecules.",
+                    "type": "calculation",
+                    "clue": "Your answer is the second code digit.",
+                    "exercise_book_format": "Show working, circle answer",
+                },
+            ],
+            "completion": "Combine your clues to form the case code.",
+            "assessment_tip": "Check for correct equation application and real plant names.",
+            "quiz": [
+                {
+                    "question": "What gas do plants absorb during photosynthesis?",
+                    "options": ["Oxygen", "Carbon dioxide", "Nitrogen", "Hydrogen"],
+                    "correct": 1,
+                    "explanation": "Plants absorb CO2 and release O2.",
+                },
+                {
+                    "question": "Where does photosynthesis take place?",
+                    "options": ["Roots", "Stem", "Leaves", "Flowers"],
+                    "correct": 2,
+                    "explanation": "Chloroplasts in leaves capture sunlight.",
+                },
+                {
+                    "question": "What is the green pigment in leaves?",
+                    "options": ["Melanin", "Chlorophyll", "Haemoglobin", "Carotene"],
+                    "correct": 1,
+                    "explanation": "Chlorophyll gives leaves their green colour.",
+                },
+                {
+                    "question": "What is the main product of photosynthesis?",
+                    "options": ["Protein", "Fat", "Glucose", "Starch"],
+                    "correct": 2,
+                    "explanation": "Plants produce glucose as their food.",
+                },
+                {
+                    "question": "Which of these is NOT needed for photosynthesis?",
+                    "options": ["Sunlight", "Water", "Oxygen", "Carbon dioxide"],
+                    "correct": 2,
+                    "explanation": "Oxygen is a product, not a reactant.",
+                },
+            ],
+        },
+        {
+            "type": "teacher_notes",
+            "title": "Teacher Notes",
+            "body": "",
+            "expected_answers": ["18 CO2 molecules for 3 glucose"],
+            "common_mistakes": ["Confusing what plants absorb vs release"],
+            "quick_assessment": "If a student can explain why covering a plant kills it, they understood.",
+            "next_lesson_link": "Connects to cellular respiration -- the reverse process.",
+            "exam_tip": "WAEC 2024 Q3 tested the balanced equation.",
+            "safety_notes": None,
+        },
+    ],
+}
+
+SAMPLE_LESSON_JSON = json.dumps(SAMPLE_LESSON_JSON_DICT)
+
+# --- Legacy block format (current production) ---
+
+SAMPLE_LESSON_BLOCKS = """[BLOCK_START_OPENER]
+Title: What if photosynthesis stopped tomorrow?
+Summary: Ask a thought-provoking question about photosynthesis
+Details: Ask students: 'If every plant stopped making food from sunlight right now, how long before we feel it?' Give them 10 seconds to guess.
+[BLOCK_END]
+
+[BLOCK_START_EXPLAIN]
+Title: The Factory Inside Every Leaf
+Summary: Photosynthesis explained in plain language
+Details: Think of each leaf as a tiny solar-powered factory. It takes sunlight, water from the soil, and carbon dioxide from the air, and converts them into glucose (sugar) and oxygen. The equation is: 6CO2 + 6H2O -> C6H12O6 + 6O2.
+[BLOCK_END]
+
+[BLOCK_START_ACTIVITY]
+Title: Photosynthesis Relay Race
+Summary: Group relay race -- 12 minutes
+Details: Split class into teams of 5. Each team member runs to the board and writes one step of photosynthesis in order. First team to complete all steps correctly wins.
+[BLOCK_END]
+
+[BLOCK_START_HOMEWORK]
+Title: The Oxygen Detective
+Summary: Detective case
+Details: You are a science detective. Visit any garden and count the plants you see. Then calculate the CO2 needed for 3 glucose molecules. Write a one-paragraph detective report.
+[BLOCK_END]
+
+[BLOCK_START_TEACHER_NOTES]
+Title: Teacher Notes
+Summary: Quick reference for the teacher
+Details: EXPECTED ANSWERS: 18 CO2 molecules. COMMON MISTAKES: Confusing absorption vs release. QUICK CHECK: Can the student explain why covering a plant kills it?
+[BLOCK_END]"""
+
+# --- Legacy format with OLD block names (from test_main.py) ---
+
+SAMPLE_LESSON_OLD_NAMES = """[BLOCK_START_HOOK]
+Title: The Water Cycle in Your Kitchen
+Summary: You see the water cycle every time you boil water!
+Details: Start by boiling a kettle and holding a cold plate above the steam.
+[BLOCK_END]
+
+[BLOCK_START_FACT]
+Title: Earth Has the Same Water as the Dinosaurs
+Summary: Every drop of water on Earth has been recycled for billions of years.
+Details: The water cycle means no new water is created -- it just moves around.
+[BLOCK_END]
+
+[BLOCK_START_HOMEWORK]
+Title: Water Detective
+Summary: Story problem
+Details: You are a water engineer investigating a drought.
+[BLOCK_END]"""

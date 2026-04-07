@@ -35,8 +35,9 @@ def _is_expired(created_at: str | None) -> bool:
 
 def save_homework_code(code: str, thread_id: str, lesson_content: str,
                        quiz_questions: list, homework_block: str,
-                       teacher_phone: str = "") -> bool:
-    record = {
+                       teacher_phone: str = "",
+                       lesson_json: dict | None = None) -> bool:
+    record: dict = {
         "code": code,
         "thread_id": thread_id,
         "lesson_content": lesson_content,
@@ -45,6 +46,8 @@ def save_homework_code(code: str, thread_id: str, lesson_content: str,
     }
     if teacher_phone:
         record["teacher_phone"] = teacher_phone
+    if lesson_json is not None:
+        record["lesson_json"] = lesson_json
 
     if not supabase:
         record["created_at"] = datetime.now(timezone.utc).isoformat()
