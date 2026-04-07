@@ -509,27 +509,32 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
             yield _sse_event("fallback", {"raw_text": full_text})
 
         # Finalize: PDF + homework code
-        reply, pdf_url, homework_code, pack = await _finalize_lesson(
-            full_text,
-            req.message,
-            req.thread_id,
-            teacher_phone,
-            class_level,
-            subject,
-            topic,
-            lesson_pack=lesson_pack,
-        )
-
-        # Track usage
-        if teacher_phone and _has_content(reply, pack):
-            log_usage(teacher_phone, "lesson")
-
-        # Cache
-        if class_level and subject and topic and pack:
-            cache_lesson(
-                subject, topic, class_level, full_text,
-                lesson_json=pack.model_dump(),
+        try:
+            reply, pdf_url, homework_code, pack = await _finalize_lesson(
+                full_text,
+                req.message,
+                req.thread_id,
+                teacher_phone,
+                class_level,
+                subject,
+                topic,
+                lesson_pack=lesson_pack,
             )
+
+            # Track usage
+            if teacher_phone and _has_content(reply, pack):
+                log_usage(teacher_phone, "lesson")
+
+            # Cache
+            if class_level and subject and topic and pack:
+                cache_lesson(
+                    subject, topic, class_level, full_text,
+                    lesson_json=pack.model_dump(),
+                )
+        except Exception as e:
+            print(f"Error in stream finalization: {e}")
+            pdf_url = None
+            homework_code = None
 
         yield _sse_event("done", {
             "pdf_url": pdf_url,

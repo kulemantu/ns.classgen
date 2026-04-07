@@ -870,21 +870,33 @@
                     rawText = rawText.replace(/SUGGESTIONS:\s*(.*)/i, '').trim();
                 }
 
-                const blockRegex = /\[BLOCK_START_(.*?)\](.*?)\[BLOCK_END\]/gs;
+                // Parse blocks: prefer structured lesson_pack, fall back to regex
                 const blocks = [];
-                let match;
-                while ((match = blockRegex.exec(rawText)) !== null) {
-                    const blockType = match[1].trim();
-                    const blockContent = match[2];
-                    const titleMatch   = blockContent.match(/Title:\s*\*{0,2}(.*?)\*{0,2}\s*(?:\n|$)/i);
-                    const summaryMatch = blockContent.match(/Summary:\s*(.*?)(?:\n|$)/i);
-                    const detailsMatch = blockContent.match(/Details:\s*([\s\S]*?)$/i);
-                    blocks.push({
-                        type:    blockType,
-                        title:   titleMatch   ? titleMatch[1].replace(/\*\*/g,'').trim() : blockType,
-                        summary: summaryMatch ? summaryMatch[1].trim() : '',
-                        details: detailsMatch ? detailsMatch[1].trim() : ''
+                if (data.lesson_pack && data.lesson_pack.blocks) {
+                    data.lesson_pack.blocks.forEach(b => {
+                        blocks.push({
+                            type:    (b.type || '').toUpperCase(),
+                            title:   b.title || b.type || '',
+                            summary: b.wow_fact || b.format || '',
+                            details: b.body || b.narrative || ''
+                        });
                     });
+                } else {
+                    const blockRegex = /\[BLOCK_START_(.*?)\](.*?)\[BLOCK_END\]/gs;
+                    let match;
+                    while ((match = blockRegex.exec(rawText)) !== null) {
+                        const blockType = match[1].trim();
+                        const blockContent = match[2];
+                        const titleMatch   = blockContent.match(/Title:\s*\*{0,2}(.*?)\*{0,2}\s*(?:\n|$)/i);
+                        const summaryMatch = blockContent.match(/Summary:\s*(.*?)(?:\n|$)/i);
+                        const detailsMatch = blockContent.match(/Details:\s*([\s\S]*?)$/i);
+                        blocks.push({
+                            type:    blockType,
+                            title:   titleMatch   ? titleMatch[1].replace(/\*\*/g,'').trim() : blockType,
+                            summary: summaryMatch ? summaryMatch[1].trim() : '',
+                            details: detailsMatch ? detailsMatch[1].trim() : ''
+                        });
+                    }
                 }
 
                 if (blocks.length > 0) {

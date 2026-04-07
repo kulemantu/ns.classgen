@@ -36,3 +36,4 @@ WORKING-SESSION*.md
 scratch/scripts/
 scratch/perf/
 .coverage
+docker-compose.override.yml
