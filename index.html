@@ -236,14 +236,7 @@
         .header-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
         .header-btn.registered { color: #fff; }
 
-        #notify-btn {
-            display: none;
-            background: none; border: 1px solid rgba(255,255,255,0.4);
-            color: rgba(255,255,255,0.82); border-radius: 6px;
-            padding: 5px 10px; font-size: 0.73rem; cursor: pointer;
-            transition: all 0.2s; font-family: inherit; white-space: nowrap;
-        }
-        #notify-btn:hover { background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.7); }
+        /* #notify-btn removed from header — push toggle lives in Settings sidebar */
 
         /* ── Breadcrumb bar ─────────────────────────────── */
         #breadcrumb-bar {
@@ -605,13 +598,15 @@
         }
         /* Toast notification */
         .toast {
-            position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-20px);
-            background: var(--modal-accent); color: #fff; padding: 10px 20px;
-            border-radius: 10px; font-size: 0.85rem; font-weight: 600;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.18); z-index: 9999;
-            opacity: 0; transition: opacity 0.3s, transform 0.3s;
-            pointer-events: none; max-width: 90%;
+            position: fixed; top: 72px; left: 50%; transform: translateX(-50%) translateY(-20px);
+            background: #1e293b; color: #f1f5f9; padding: 12px 22px;
+            border-radius: 12px; font-size: 0.85rem; font-weight: 600;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.25); z-index: 9999;
+            opacity: 0; transition: opacity 0.35s, transform 0.35s;
+            pointer-events: none; max-width: 88%; text-align: center;
+            letter-spacing: 0.01em;
         }
+        [data-theme="dark"] .toast { background: #334155; color: #f8fafc; }
         .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     </style>
 </head>
@@ -650,10 +645,6 @@
                 <div class="header-status" id="header-status">online</div>
             </div>
             <div class="header-actions">
-                <button id="notify-btn" onclick="enableNotifications()">
-                    <svg xmlns="http://www.w3.org/2000/svg" style="display:inline;vertical-align:middle;width:11px;height:11px;margin-right:3px" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                    Notifications
-                </button>
                 <button id="profile-btn" class="header-btn" title="Profile" onclick="toggleSidebar()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                 </button>
@@ -1074,19 +1065,18 @@
             try {
                 swRegistration = await navigator.serviceWorker.register('/static/sw.js');
                 const sub = await swRegistration.pushManager.getSubscription();
-                if (!sub) document.getElementById('notify-btn').style.display = 'inline-flex';
+                pushEnabled = !!sub;
             } catch (e) { console.log('SW registration failed:', e); }
         }
 
         async function enableNotifications() {
             if (!swRegistration) return;
-            const btn = document.getElementById('notify-btn');
             try {
                 const permission = await Notification.requestPermission();
-                if (permission !== 'granted') { btn.textContent = 'Blocked'; btn.disabled = true; return; }
+                if (permission !== 'granted') return;
                 const keyResp = await fetch('/api/vapid-key');
                 const keyData = await keyResp.json();
-                if (!keyData.publicKey) { btn.style.display = 'none'; return; }
+                if (!keyData.publicKey) return;
                 const sub = await swRegistration.pushManager.subscribe({
                     userVisibleOnly: true,
                     applicationServerKey: urlBase64ToUint8Array(keyData.publicKey),
@@ -1097,7 +1087,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ endpoint: subJson.endpoint, keys: subJson.keys, teacher_id: threadId }),
                 });
-                btn.style.display = 'none';
+                pushEnabled = true;
             } catch (e) { console.error('Push subscription failed:', e); }
         }
 
