@@ -771,6 +771,47 @@
             return group;
         }
 
+        // ── Formatting helpers ────────────────────────────────
+
+        function humanize(str) {
+            if (!str) return '';
+            return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        function formatDetails(text, structured) {
+            if (!text) return '';
+            let html = escapeHtml(text);
+            // Paragraphs: split on double newlines or sentence boundaries for long blocks
+            html = html.replace(/\n\n+/g, '</p><p>');
+            html = html.replace(/\n/g, '<br>');
+            // Bold: **text** or text between quotes used for emphasis
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            // Italic: single quotes around terms
+            html = html.replace(/&#x27;(.*?)&#x27;/g, '<em>\'$1\'</em>');
+            html = '<p>' + html + '</p>';
+
+            // Append structured metadata as styled sections
+            if (structured) {
+                if (structured.equation) {
+                    html += '<div style="margin:1rem 0;padding:0.75rem 1rem;background:var(--bg-main);border-radius:8px;font-family:monospace;font-size:0.95rem;text-align:center">' + escapeHtml(structured.equation) + '</div>';
+                }
+                if (structured.key_terms && structured.key_terms.length > 0) {
+                    html += '<div style="margin-top:1rem"><strong style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--modal-accent)">Key Terms</strong>';
+                    structured.key_terms.forEach(kt => {
+                        html += '<div style="margin:0.4rem 0;font-size:0.9rem"><strong>' + escapeHtml(kt.term) + '</strong> &mdash; ' + escapeHtml(kt.definition) + '</div>';
+                    });
+                    html += '</div>';
+                }
+                if (structured.materials && structured.materials.length > 0) {
+                    html += '<div style="margin-top:0.8rem;font-size:0.85rem;color:#666"><strong>Materials:</strong> ' + structured.materials.map(escapeHtml).join(', ') + '</div>';
+                }
+                if (structured.expected_outcome) {
+                    html += '<div style="margin-top:0.8rem;font-size:0.85rem;color:#666"><strong>Expected outcome:</strong> ' + escapeHtml(structured.expected_outcome) + '</div>';
+                }
+            }
+            return html;
+        }
+
         // ── Block icons ───────────────────────────────────────
         const BLOCK_ICONS = {
             OPENER:       '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>',
@@ -780,7 +821,7 @@
             TEACHER_NOTES:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>'
         };
 
-        function renderBlock(blockType, title, summary, details) {
+        function renderBlock(blockType, title, summary, details, structured) {
             const icon = BLOCK_ICONS[blockType] || BLOCK_ICONS.OPENER;
             const block = document.createElement('div');
             block.className = 'encyclopedia-block';
@@ -789,7 +830,7 @@
                 <div class="encyclopedia-summary">${escapeHtml(summary)}</div>
             `;
             block.addEventListener('click', () => {
-                openEncyclopedia(title, escapeHtml(details).replace(/\n/g, '<br>'));
+                openEncyclopedia(title, formatDetails(details, structured));
             });
             return block;
         }
@@ -874,11 +915,19 @@
                 const blocks = [];
                 if (data.lesson_pack && data.lesson_pack.blocks) {
                     data.lesson_pack.blocks.forEach(b => {
+                        // Build a readable summary from structured fields
+                        let summary = '';
+                        if (b.type === 'explain' && b.wow_fact) summary = b.wow_fact;
+                        else if (b.type === 'activity' && b.format) summary = humanize(b.format) + (b.duration_minutes ? ' \u2014 ' + b.duration_minutes + ' minutes' : '');
+                        else if (b.type === 'homework' && b.format) summary = humanize(b.format) + (b.narrative ? ' \u2014 ' + b.narrative.substring(0, 80) + '\u2026' : '');
+                        else if (b.type === 'opener' && b.format) summary = humanize(b.format);
+                        else if (b.wow_fact) summary = b.wow_fact;
                         blocks.push({
                             type:    (b.type || '').toUpperCase(),
                             title:   b.title || b.type || '',
-                            summary: b.wow_fact || b.format || '',
-                            details: b.body || b.narrative || ''
+                            summary: summary,
+                            details: b.body || b.narrative || '',
+                            structured: b
                         });
                     });
                 } else {
@@ -908,7 +957,7 @@
                     label.textContent = 'Lesson Pack';
                     wrapper.appendChild(label);
 
-                    blocks.forEach(b => wrapper.appendChild(renderBlock(b.type, b.title, b.summary, b.details)));
+                    blocks.forEach(b => wrapper.appendChild(renderBlock(b.type, b.title, b.summary, b.details, b.structured)));
 
                     const actions = document.createElement('div');
                     actions.className = 'lesson-actions';
