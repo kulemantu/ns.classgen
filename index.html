@@ -603,6 +603,16 @@
             .lesson-pack-wrapper { max-width: 90%; }
             #chat-feed       { padding: 10px 12px 8px; }
         }
+        /* Toast notification */
+        .toast {
+            position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-20px);
+            background: var(--modal-accent); color: #fff; padding: 10px 20px;
+            border-radius: 10px; font-size: 0.85rem; font-weight: 600;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.18); z-index: 9999;
+            opacity: 0; transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none; max-width: 90%;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     </style>
 </head>
 
@@ -664,6 +674,8 @@
         </div>
 
     </div>
+
+    <div class="toast" id="toast"></div>
 
     <script>
         const threadId = localStorage.getItem('classgen_thread_id') || ("chat_" + Math.random().toString(36).substring(2, 10));
@@ -771,6 +783,43 @@
             return group;
         }
 
+        // ── Toast notification ────────────────────────────────
+
+        function showToast(msg, duration = 3500) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), duration);
+        }
+
+        // ── Conversation persistence ─────────────────────────
+
+        function saveConversation(userMsg, data) {
+            try {
+                const history = JSON.parse(localStorage.getItem('classgen_chat_history') || '[]');
+                history.push({ role: 'user', text: userMsg, ts: Date.now() });
+                history.push({ role: 'ai', data: data, ts: Date.now() });
+                // Keep last 20 messages (10 exchanges)
+                const trimmed = history.slice(-20);
+                localStorage.setItem('classgen_chat_history', JSON.stringify(trimmed));
+            } catch (e) { /* localStorage full or disabled */ }
+        }
+
+        function restoreConversation() {
+            try {
+                const history = JSON.parse(localStorage.getItem('classgen_chat_history') || '[]');
+                if (history.length === 0) return;
+                history.forEach(entry => {
+                    if (entry.role === 'user') {
+                        chatFeed.appendChild(createUserGroup(entry.text));
+                    } else if (entry.role === 'ai' && entry.data) {
+                        renderAiResponse(entry.data);
+                    }
+                });
+                scrollToBottom();
+            } catch (e) { /* corrupted data — ignore */ }
+        }
+
         // ── Formatting helpers ────────────────────────────────
 
         function humanize(str) {
@@ -860,6 +909,107 @@
             submitPrompt();
         }
 
+        // ── Lesson notification ───────────────────────────────
+
+        function notifyLesson(lessonName) {
+            const msg = 'Lesson "' + lessonName + '" Ready';
+            showToast(msg);
+            // Native notification if permission granted
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('ClassGen', { body: msg, icon: '/static/icon-192.png' });
+            }
+        }
+
+        // ── AI Response Renderer ─────────────────────────────
+
+        function renderAiResponse(data) {
+            let rawText = data.reply || '';
+            let buttons = [];
+
+            const suggestsMatch = rawText.match(/SUGGESTIONS:\s*(.*)/i);
+            if (suggestsMatch) {
+                buttons = suggestsMatch[1].split('|')
+                    .map(o => o.trim().replace(/^\[|\]$/g, '').trim())
+                    .filter(Boolean).slice(0, 3);
+                rawText = rawText.replace(/SUGGESTIONS:\s*(.*)/i, '').trim();
+            }
+
+            // Parse blocks: prefer structured lesson_pack, fall back to regex
+            const blocks = [];
+            if (data.lesson_pack && data.lesson_pack.blocks) {
+                data.lesson_pack.blocks.forEach(b => {
+                    let summary = '';
+                    if (b.type === 'explain' && b.wow_fact) summary = b.wow_fact;
+                    else if (b.type === 'activity' && b.format) summary = humanize(b.format) + (b.duration_minutes ? ' \u2014 ' + b.duration_minutes + ' minutes' : '');
+                    else if (b.type === 'homework' && b.format) summary = humanize(b.format) + (b.narrative ? ' \u2014 ' + b.narrative.substring(0, 80) + '\u2026' : '');
+                    else if (b.type === 'opener' && b.format) summary = humanize(b.format);
+                    else if (b.wow_fact) summary = b.wow_fact;
+                    blocks.push({
+                        type:    (b.type || '').toUpperCase(),
+                        title:   b.title || b.type || '',
+                        summary: summary,
+                        details: b.body || b.narrative || '',
+                        structured: b
+                    });
+                });
+            } else {
+                const blockRegex = /\[BLOCK_START_(.*?)\](.*?)\[BLOCK_END\]/gs;
+                let match;
+                while ((match = blockRegex.exec(rawText)) !== null) {
+                    const blockType = match[1].trim();
+                    const blockContent = match[2];
+                    const titleMatch   = blockContent.match(/Title:\s*\*{0,2}(.*?)\*{0,2}\s*(?:\n|$)/i);
+                    const summaryMatch = blockContent.match(/Summary:\s*(.*?)(?:\n|$)/i);
+                    const detailsMatch = blockContent.match(/Details:\s*([\s\S]*?)$/i);
+                    blocks.push({
+                        type:    blockType,
+                        title:   titleMatch   ? titleMatch[1].replace(/\*\*/g,'').trim() : blockType,
+                        summary: summaryMatch ? summaryMatch[1].trim() : '',
+                        details: detailsMatch ? detailsMatch[1].trim() : ''
+                    });
+                }
+            }
+
+            if (blocks.length > 0) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'lesson-pack-wrapper';
+
+                const label = document.createElement('div');
+                label.className = 'lesson-pack-label';
+                label.textContent = 'Lesson Pack';
+                wrapper.appendChild(label);
+
+                blocks.forEach(b => wrapper.appendChild(renderBlock(b.type, b.title, b.summary, b.details, b.structured)));
+
+                const actions = document.createElement('div');
+                actions.className = 'lesson-actions';
+                if (data.pdf_url) {
+                    const pdfLink = document.createElement('a');
+                    pdfLink.href = data.pdf_url; pdfLink.target = '_blank';
+                    pdfLink.className = 'lesson-action-btn';
+                    pdfLink.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> Download PDF';
+                    actions.appendChild(pdfLink);
+                }
+                if (data.homework_code) {
+                    const hwLink = document.createElement('a');
+                    hwLink.href = '/h/' + encodeURIComponent(data.homework_code); hwLink.target = '_blank';
+                    hwLink.className = 'lesson-action-btn';
+                    hwLink.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> Homework: ' + escapeHtml(data.homework_code);
+                    actions.appendChild(hwLink);
+                }
+                if (actions.children.length > 0) wrapper.appendChild(actions);
+                chatFeed.appendChild(wrapper);
+
+                // Notify: use opener title as lesson name
+                const lessonName = blocks[0].title || 'Untitled';
+                notifyLesson(lessonName);
+            } else {
+                let formattedHtml = escapeHtml(rawText).replace(/\n/g, '<br>');
+                formattedHtml = formattedHtml.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                chatFeed.appendChild(createAiGroup(formattedHtml, buttons));
+            }
+        }
+
         // ── Main Submit ───────────────────────────────────────
 
         async function submitPrompt() {
@@ -900,89 +1050,8 @@
                 const data = await response.json();
                 if (chatFeed.contains(typingGroup)) chatFeed.removeChild(typingGroup);
 
-                let rawText = data.reply;
-                let buttons = [];
-
-                const suggestsMatch = rawText.match(/SUGGESTIONS:\s*(.*)/i);
-                if (suggestsMatch) {
-                    buttons = suggestsMatch[1].split('|')
-                        .map(o => o.trim().replace(/^\[|\]$/g, '').trim())
-                        .filter(Boolean).slice(0, 3);
-                    rawText = rawText.replace(/SUGGESTIONS:\s*(.*)/i, '').trim();
-                }
-
-                // Parse blocks: prefer structured lesson_pack, fall back to regex
-                const blocks = [];
-                if (data.lesson_pack && data.lesson_pack.blocks) {
-                    data.lesson_pack.blocks.forEach(b => {
-                        // Build a readable summary from structured fields
-                        let summary = '';
-                        if (b.type === 'explain' && b.wow_fact) summary = b.wow_fact;
-                        else if (b.type === 'activity' && b.format) summary = humanize(b.format) + (b.duration_minutes ? ' \u2014 ' + b.duration_minutes + ' minutes' : '');
-                        else if (b.type === 'homework' && b.format) summary = humanize(b.format) + (b.narrative ? ' \u2014 ' + b.narrative.substring(0, 80) + '\u2026' : '');
-                        else if (b.type === 'opener' && b.format) summary = humanize(b.format);
-                        else if (b.wow_fact) summary = b.wow_fact;
-                        blocks.push({
-                            type:    (b.type || '').toUpperCase(),
-                            title:   b.title || b.type || '',
-                            summary: summary,
-                            details: b.body || b.narrative || '',
-                            structured: b
-                        });
-                    });
-                } else {
-                    const blockRegex = /\[BLOCK_START_(.*?)\](.*?)\[BLOCK_END\]/gs;
-                    let match;
-                    while ((match = blockRegex.exec(rawText)) !== null) {
-                        const blockType = match[1].trim();
-                        const blockContent = match[2];
-                        const titleMatch   = blockContent.match(/Title:\s*\*{0,2}(.*?)\*{0,2}\s*(?:\n|$)/i);
-                        const summaryMatch = blockContent.match(/Summary:\s*(.*?)(?:\n|$)/i);
-                        const detailsMatch = blockContent.match(/Details:\s*([\s\S]*?)$/i);
-                        blocks.push({
-                            type:    blockType,
-                            title:   titleMatch   ? titleMatch[1].replace(/\*\*/g,'').trim() : blockType,
-                            summary: summaryMatch ? summaryMatch[1].trim() : '',
-                            details: detailsMatch ? detailsMatch[1].trim() : ''
-                        });
-                    }
-                }
-
-                if (blocks.length > 0) {
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'lesson-pack-wrapper';
-
-                    const label = document.createElement('div');
-                    label.className = 'lesson-pack-label';
-                    label.textContent = 'Lesson Pack';
-                    wrapper.appendChild(label);
-
-                    blocks.forEach(b => wrapper.appendChild(renderBlock(b.type, b.title, b.summary, b.details, b.structured)));
-
-                    const actions = document.createElement('div');
-                    actions.className = 'lesson-actions';
-                    if (data.pdf_url) {
-                        const pdfLink = document.createElement('a');
-                        pdfLink.href = data.pdf_url; pdfLink.target = '_blank';
-                        pdfLink.className = 'lesson-action-btn';
-                        pdfLink.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> Download PDF';
-                        actions.appendChild(pdfLink);
-                    }
-                    if (data.homework_code) {
-                        const hwLink = document.createElement('a');
-                        hwLink.href = '/h/' + encodeURIComponent(data.homework_code); hwLink.target = '_blank';
-                        hwLink.className = 'lesson-action-btn';
-                        hwLink.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> Homework: ' + escapeHtml(data.homework_code);
-                        actions.appendChild(hwLink);
-                    }
-                    if (actions.children.length > 0) wrapper.appendChild(actions);
-                    chatFeed.appendChild(wrapper);
-                } else {
-                    let formattedHtml = escapeHtml(rawText).replace(/\n/g, '<br>');
-                    formattedHtml = formattedHtml.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                    chatFeed.appendChild(createAiGroup(formattedHtml, buttons));
-                }
-
+                renderAiResponse(data);
+                saveConversation(text, data);
                 scrollToBottom();
 
             } catch (err) {
@@ -1278,6 +1347,8 @@
             chatFeed.appendChild(createAiGroup(
                 'Hey! Let\'s build a great lesson. What subject are we teaching today?'
             ));
+            // Restore previous conversation from localStorage
+            restoreConversation();
             inputField.focus();
             initServiceWorker();
             fetchProfile();
