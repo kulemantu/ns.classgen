@@ -92,7 +92,8 @@ GitHub Actions (`.github/workflows/ci.yml`): runs `pytest` + `ruff check` on pus
 - **Command routing**: `classgen.commands.router.handle_command()` returns `CommandResult | None`. `None` means "not a command, send to LLM".
 - **Dual lesson format**: Legacy `[BLOCK_START_TYPE]...[BLOCK_END]` markers (flags off) or structured JSON `LessonPack` (flags on). `parse_lesson_response()` in `core/parsers.py` tries JSON first, falls back to block regex. Both produce a `LessonPack` Pydantic model.
 - **Feature flags**: 4 env-var flags in `core/feature_flags.py` — `FF_STRUCTURED_OUTPUT`, `FF_SSE_STREAMING`, `FF_JSON_RESPONSE_FORMAT`, `FF_EMBEDDED_QUIZ`. All default off. `structured_output` is the foundation; the other 3 depend on it. Use `flags.effective_*` properties for resolved state.
-- **Tests mock external services**: `call_openrouter`, Supabase, and Twilio are patched in tests. Patches target `classgen.api.*` modules where functions are used, not where they're defined.
+- **Onboarding**: First-visit web users see a 3-slide intro overlay (brand → how it works → features + terms). WhatsApp users get a welcome message and must reply YES. Shared content config in `content/onboarding.py`. Terms page at `/terms`. State: localStorage (`classgen_intro_seen`) + server (`onboarded_at` on teachers table).
+- **Tests mock external services**: `call_openrouter`, Supabase, and Twilio are patched in tests. Patches target `classgen.api.*` modules where functions are used, not where they're defined. `tests/conftest.py` has an autouse fixture that bypasses the onboarding guard — tests that specifically test onboarding mock `is_onboarded` themselves.
 - **Path resolution**: Use `APP_ROOT` env var for project root in Docker. Fallback to `Path(__file__).parents[3]` for local dev with src/ layout.
 
 ## Environment
