@@ -315,7 +315,8 @@
             gap: 3px; margin-top: 4px;
         }
         .bubble-time  { font-size: 11px; color: var(--bubble-time); white-space: nowrap; }
-        .bubble-ticks { font-size: 12px; color: var(--bubble-ticks); line-height: 1; }
+        .bubble-ticks { color: var(--bubble-ticks); line-height: 1; display: inline-flex; vertical-align: middle; margin-left: 2px; }
+        .bubble-ticks svg { width: 16px; height: 11px; }
 
         /* ── WA Button-attached messages ────────────────── */
         .msg-buttons {
@@ -948,7 +949,7 @@
 
             const bubble = document.createElement('div');
             bubble.className = 'message-bubble bubble-user';
-            bubble.innerHTML = `${escapeHtml(text)}<div class="bubble-footer"><span class="bubble-time">${getTimestamp()}</span><span class="bubble-ticks">&#10003;&#10003;</span></div>`;
+            bubble.innerHTML = `${escapeHtml(text)}<div class="bubble-footer"><span class="bubble-time">${getTimestamp()}</span><span class="bubble-ticks"><svg viewBox="0 0 16 11" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11.07 0.66L4.98 6.75L2.91 4.68L1.5 6.09L4.98 9.57L12.48 2.07L11.07 0.66Z" fill="currentColor"/><path d="M14.07 0.66L7.98 6.75L6.69 5.47L5.28 6.88L7.98 9.57L15.48 2.07L14.07 0.66Z" fill="currentColor"/></svg></span></div>`;
             group.appendChild(bubble);
 
             return group;
