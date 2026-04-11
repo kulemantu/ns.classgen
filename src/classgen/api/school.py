@@ -116,7 +116,5 @@ async def school_export(slug: str):
     return Response(
         content=csv_content,
         media_type="text/csv",
-        headers={
-            "Content-Disposition": f'attachment; filename="{school_name}_export.csv"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="{school_name}_export.csv"'},
     )

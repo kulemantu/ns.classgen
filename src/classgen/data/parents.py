@@ -18,8 +18,9 @@ _mem_parent_subs: dict[str, dict] = {}
 # --- Parent Subscriptions ---
 
 
-def save_parent_subscription(parent_phone: str, teacher_phone: str,
-                             student_name: str, student_class: str) -> bool:
+def save_parent_subscription(
+    parent_phone: str, teacher_phone: str, student_name: str, student_class: str
+) -> bool:
     """Subscribe a parent to weekly digests for a teacher's class."""
     key = f"{parent_phone}:{teacher_phone}:{student_class}"
     record = {
@@ -66,11 +67,13 @@ def unsubscribe_parent(parent_phone: str, teacher_phone: str, student_class: str
     if not supabase:
         return _mem_parent_subs.pop(key, None) is not None
     try:
-        supabase.table("parent_subscriptions").delete().match({
-            "parent_phone": parent_phone,
-            "teacher_phone": teacher_phone,
-            "student_class": student_class,
-        }).execute()
+        supabase.table("parent_subscriptions").delete().match(
+            {
+                "parent_phone": parent_phone,
+                "teacher_phone": teacher_phone,
+                "student_class": student_class,
+            }
+        ).execute()
         return True
     except Exception as e:
         print(f"Error unsubscribing parent: {e}")

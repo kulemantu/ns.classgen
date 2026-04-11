@@ -24,9 +24,7 @@ async def dev_seed():
     from classgen.data.client import supabase as _sb
 
     if _sb:
-        return JSONResponse(
-            {"error": "Only available in local dev mode"}, status_code=403
-        )
+        return JSONResponse({"error": "Only available in local dev mode"}, status_code=403)
 
     # Seed a teacher
     teacher = save_teacher("+2348012345678", "Mrs. Okafor", "Lagos Model School")

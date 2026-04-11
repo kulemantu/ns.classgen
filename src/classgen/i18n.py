@@ -17,13 +17,13 @@ from babel.numbers import format_currency as _babel_format_currency
 # Phone country-code -> (babel locale, default currency)
 # Sorted longest-prefix-first at lookup time so +2547... beats +25...
 PHONE_LOCALES: dict[str, tuple[str, str]] = {
-    "+234": ("en_NG", "NGN"),   # Nigeria
-    "+254": ("en_KE", "KES"),   # Kenya
-    "+233": ("en_GH", "GHS"),   # Ghana
-    "+255": ("sw_TZ", "TZS"),   # Tanzania
-    "+256": ("en_UG", "UGX"),   # Uganda
-    "+27":  ("en_ZA", "ZAR"),   # South Africa
-    "+1":   ("en_US", "USD"),   # US / international fallback
+    "+234": ("en_NG", "NGN"),  # Nigeria
+    "+254": ("en_KE", "KES"),  # Kenya
+    "+233": ("en_GH", "GHS"),  # Ghana
+    "+255": ("sw_TZ", "TZS"),  # Tanzania
+    "+256": ("en_UG", "UGX"),  # Uganda
+    "+27": ("en_ZA", "ZAR"),  # South Africa
+    "+1": ("en_US", "USD"),  # US / international fallback
 }
 
 # Best locale for displaying each currency's native symbol.
@@ -60,8 +60,7 @@ def locale_from_phone(phone: str) -> tuple[str, str]:
     return DEFAULT_LOCALE, DEFAULT_CURRENCY
 
 
-def format_currency(amount: float | int, currency: str,
-                    locale: str | None = None) -> str:
+def format_currency(amount: float | int, currency: str, locale: str | None = None) -> str:
     """Format an amount with locale-aware currency symbol and grouping.
 
     >>> format_currency(2000, "NGN")
@@ -95,8 +94,7 @@ def format_currency_short(amount: float | int, currency: str) -> str:
     return formatted
 
 
-def format_date(date: datetime.date, fmt: str = "medium",
-                locale: str | None = None) -> str:
+def format_date(date: datetime.date, fmt: str = "medium", locale: str | None = None) -> str:
     """Format a date for the given locale.
 
     >>> import datetime
@@ -108,8 +106,7 @@ def format_date(date: datetime.date, fmt: str = "medium",
     return _babel_format_date(date, format=fmt, locale=locale)
 
 
-def format_datetime(dt: datetime.datetime, fmt: str = "medium",
-                    locale: str | None = None) -> str:
+def format_datetime(dt: datetime.datetime, fmt: str = "medium", locale: str | None = None) -> str:
     """Format a datetime for the given locale."""
     if locale is None:
         locale = DEFAULT_LOCALE

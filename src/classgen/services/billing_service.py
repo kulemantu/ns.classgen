@@ -21,6 +21,7 @@ from classgen.i18n import DEFAULT_CURRENCY, format_currency_short
 def get_price(tier: str, currency: str = DEFAULT_CURRENCY) -> int:
     """Get the price for a tier in the given currency."""
     from classgen.core.billing import TIER_PRICES
+
     return TIER_PRICES.get(tier, TIER_PRICES["free"]).get(currency.upper(), 0)
 
 
@@ -47,9 +48,11 @@ def check_usage(teacher_phone: str) -> UsageCheck:
 
     if remaining <= 0:
         return UsageCheck(
-            allowed=False, remaining=0, tier=tier_name,
+            allowed=False,
+            remaining=0,
+            tier=tier_name,
             message=f"You've used all {limit} free lessons this week. "
-                    f"Upgrade to Premium for unlimited lessons, or wait until next week."
+            f"Upgrade to Premium for unlimited lessons, or wait until next week.",
         )
 
     return UsageCheck(allowed=True, remaining=remaining, tier=tier_name)
@@ -57,8 +60,10 @@ def check_usage(teacher_phone: str) -> UsageCheck:
 
 # --- Payment providers ---
 
+
 class PaymentProvider:
     """Base class for payment providers."""
+
     def create_payment_link(self, amount: int, email: str, ref: str) -> str | None:
         raise NotImplementedError
 
@@ -68,8 +73,10 @@ class PaymentProvider:
 
 class PaystackProvider(PaymentProvider):
     """Paystack payment provider (card, USSD, bank transfer)."""
+
     def __init__(self):
         import os
+
         self.secret_key = os.environ.get("PAYSTACK_SECRET_KEY", "")
 
     def create_payment_link(self, amount: int, email: str, ref: str) -> str | None:
@@ -78,6 +85,7 @@ class PaystackProvider(PaymentProvider):
             return None
         try:
             import httpx
+
             resp = httpx.post(
                 "https://api.paystack.co/transaction/initialize",
                 headers={"Authorization": f"Bearer {self.secret_key}"},
@@ -94,6 +102,7 @@ class PaystackProvider(PaymentProvider):
             return False
         try:
             import httpx
+
             resp = httpx.get(
                 f"https://api.paystack.co/transaction/verify/{ref}",
                 headers={"Authorization": f"Bearer {self.secret_key}"},
@@ -107,6 +116,7 @@ class PaystackProvider(PaymentProvider):
 
 class BankTransferProvider(PaymentProvider):
     """Manual bank transfer with reference code verification."""
+
     BANK_DETAILS = {
         "bank": "Access Bank",
         "account_number": "0123456789",

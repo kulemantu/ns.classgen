@@ -39,7 +39,13 @@ class TestChatEndpointUnchanged:
     @patch("classgen.api.chat.get_session_history", return_value=[])
     @patch("classgen.api.chat.log_session")
     def test_response_shape(
-        self, mock_log, mock_hist, mock_pdf, mock_llm, mock_code, mock_save,
+        self,
+        mock_log,
+        mock_hist,
+        mock_pdf,
+        mock_llm,
+        mock_code,
+        mock_save,
     ):
         mock_llm.side_effect = [
             SAMPLE_LESSON_BLOCKS,
@@ -80,8 +86,16 @@ class TestWebhookUnchanged:
     @patch("classgen.api.chat.generate_homework_code", return_value="BIO42")
     @patch("classgen.api.chat.save_homework_code")
     def test_twiml_shape(
-        self, mock_save, mock_code, mock_llm, mock_log, mock_hist,
-        mock_pdf, mock_cmd, mock_usage_log, mock_check,
+        self,
+        mock_save,
+        mock_code,
+        mock_llm,
+        mock_log,
+        mock_hist,
+        mock_pdf,
+        mock_cmd,
+        mock_usage_log,
+        mock_check,
     ):
         mock_check.return_value = type(
             "U", (), {"allowed": True, "remaining": 5, "tier": "free", "message": ""}
@@ -114,7 +128,9 @@ class TestOldHomeworkCodesStillWork:
 
     def test_old_format_serves(self):
         save_homework_code(
-            "OLD42", "thread1", SAMPLE_LESSON_BLOCKS,
+            "OLD42",
+            "thread1",
+            SAMPLE_LESSON_BLOCKS,
             [{"question": "Q", "options": ["A", "B", "C", "D"], "correct": 0}],
             "Title: Test\nDetails: Test homework",
         )
@@ -128,7 +144,9 @@ class TestOldHomeworkCodesStillWork:
 
     def test_new_format_includes_structured(self):
         save_homework_code(
-            "NEW42", "thread1", "raw text",
+            "NEW42",
+            "thread1",
+            "raw text",
             [{"question": "Q", "options": ["A", "B", "C", "D"], "correct": 0}],
             "Title: Test\nDetails: Test homework",
             lesson_json=SAMPLE_LESSON_JSON_DICT,
@@ -157,7 +175,9 @@ class TestOldLessonCacheStillWorks:
 
     def test_new_cache_returns_content(self):
         cache_lesson(
-            "Biology", "Photosynthesis", "SS2",
+            "Biology",
+            "Photosynthesis",
+            "SS2",
             json.dumps(SAMPLE_LESSON_JSON_DICT),
             lesson_json=SAMPLE_LESSON_JSON_DICT,
         )
@@ -176,7 +196,10 @@ class TestGetCachedLessonJson:
 
     def test_returns_json_when_available(self):
         cache_lesson(
-            "Biology", "Photo", "SS2", "raw text",
+            "Biology",
+            "Photo",
+            "SS2",
+            "raw text",
             lesson_json=SAMPLE_LESSON_JSON_DICT,
         )
         result = get_cached_lesson_json("Biology", "Photo", "SS2")
@@ -211,7 +234,11 @@ class TestHomeworkStructuredEdgeCases:
             ]
         }
         save_homework_code(
-            "NH42", "t1", "raw", [], "hw text",
+            "NH42",
+            "t1",
+            "raw",
+            [],
+            "hw text",
             lesson_json=lesson_json,
         )
         response = client.get("/api/h/NH42")
@@ -228,7 +255,11 @@ class TestHomeworkStructuredEdgeCases:
     def test_homework_structured_fields_are_strings(self):
         """Structured fields are coerced to strings for safety."""
         save_homework_code(
-            "SF42", "t1", "raw", [], "hw text",
+            "SF42",
+            "t1",
+            "raw",
+            [],
+            "hw text",
             lesson_json=SAMPLE_LESSON_JSON_DICT,
         )
         response = client.get("/api/h/SF42")
@@ -243,7 +274,11 @@ class TestHomeworkStructuredEdgeCases:
     def test_homework_structured_no_assessment_tip_leaked(self):
         """assessment_tip (teacher-only) is NOT included in student response."""
         save_homework_code(
-            "AT42", "t1", "raw", [], "hw text",
+            "AT42",
+            "t1",
+            "raw",
+            [],
+            "hw text",
             lesson_json=SAMPLE_LESSON_JSON_DICT,
         )
         response = client.get("/api/h/AT42")
@@ -270,7 +305,13 @@ class TestFlagsOnIntegration:
     @patch("classgen.api.chat.get_session_history", return_value=[])
     @patch("classgen.api.chat.log_session")
     def test_structured_output_returns_lesson_pack(
-        self, mock_log, mock_hist, mock_pdf, mock_llm, mock_code, mock_save,
+        self,
+        mock_log,
+        mock_hist,
+        mock_pdf,
+        mock_llm,
+        mock_code,
+        mock_save,
     ):
         """With FF_STRUCTURED_OUTPUT=true, response includes lesson_pack."""
         mock_llm.return_value = SAMPLE_LESSON_JSON
@@ -290,14 +331,23 @@ class TestFlagsOnIntegration:
     @patch("classgen.api.chat.get_session_history", return_value=[])
     @patch("classgen.api.chat.log_session")
     def test_embedded_quiz_skips_second_llm_call(
-        self, mock_log, mock_hist, mock_llm, mock_code, mock_save,
+        self,
+        mock_log,
+        mock_hist,
+        mock_llm,
+        mock_code,
+        mock_save,
     ):
         """With FF_EMBEDDED_QUIZ + FF_STRUCTURED_OUTPUT, quiz from JSON, no second call."""
         mock_llm.return_value = SAMPLE_LESSON_JSON
-        with patch.dict(os.environ, {
-            "FF_STRUCTURED_OUTPUT": "true",
-            "FF_EMBEDDED_QUIZ": "true",
-        }, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "FF_STRUCTURED_OUTPUT": "true",
+                "FF_EMBEDDED_QUIZ": "true",
+            },
+            clear=True,
+        ):
             # Patch PDFAdapter to avoid file I/O
             with patch("classgen.api.chat.PDFAdapter") as mock_adapter_cls:
                 mock_adapter_cls.return_value.render_lesson.return_value = "test.pdf"
@@ -318,7 +368,12 @@ class TestFlagsOnIntegration:
     @patch("classgen.api.chat.get_session_history", return_value=[])
     @patch("classgen.api.chat.log_session")
     def test_pdf_adapter_used_when_structured(
-        self, mock_log, mock_hist, mock_llm, mock_code, mock_save,
+        self,
+        mock_log,
+        mock_hist,
+        mock_llm,
+        mock_code,
+        mock_save,
     ):
         """With FF_STRUCTURED_OUTPUT, PDFAdapter is used instead of generate_pdf_from_markdown."""
         mock_llm.return_value = SAMPLE_LESSON_JSON
@@ -352,7 +407,13 @@ class TestQuizGenerationStillCalled:
     @patch("classgen.api.chat.get_session_history", return_value=[])
     @patch("classgen.api.chat.log_session")
     def test_second_llm_call_fires(
-        self, mock_log, mock_hist, mock_pdf, mock_llm, mock_code, mock_save,
+        self,
+        mock_log,
+        mock_hist,
+        mock_pdf,
+        mock_llm,
+        mock_code,
+        mock_save,
     ):
         mock_llm.side_effect = [
             SAMPLE_LESSON_BLOCKS,

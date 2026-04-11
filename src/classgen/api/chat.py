@@ -49,9 +49,7 @@ router = APIRouter()
 
 def _has_content(text: str, pack: LessonPack | None) -> bool:
     """Check if a response contains lesson content (blocks or structured)."""
-    return _has_lesson_blocks(text) or (
-        pack is not None and len(pack.blocks) > 0
-    )
+    return _has_lesson_blocks(text) or (pack is not None and len(pack.blocks) > 0)
 
 
 def _strip_images_for_pdf(text: str) -> str:
@@ -134,7 +132,8 @@ async def _generate_lesson(
             # Try to load structured JSON from cache
             cached_json = (
                 get_cached_lesson_json(subject, topic, class_level)
-                if flags.structured_output else None
+                if flags.structured_output
+                else None
             )
             cached_pack = None
             if cached_json:
@@ -163,8 +162,7 @@ async def _generate_lesson(
     )
 
     prompt = (
-        f"Previous Conversation Context:\n{history_context}"
-        f"\n\nTeacher's message:\n{user_message}"
+        f"Previous Conversation Context:\n{history_context}\n\nTeacher's message:\n{user_message}"
     )
 
     # Branch: structured JSON or legacy text blocks
@@ -190,7 +188,10 @@ async def _generate_lesson(
     has_blocks = _has_content(assistant_reply, lesson_pack)
     if class_level and subject and topic and has_blocks:
         cache_lesson(
-            subject, topic, class_level, assistant_reply,
+            subject,
+            topic,
+            class_level,
+            assistant_reply,
             lesson_json=lesson_pack.model_dump() if lesson_pack else None,
         )
 
@@ -226,14 +227,10 @@ async def _finalize_lesson(
         try:
             if lesson_pack and flags.structured_output:
                 pdf_adapter = PDFAdapter()
-                pdf_filename = pdf_adapter.render_lesson(
-                    lesson_pack, subtitle=user_message[:120]
-                )
+                pdf_filename = pdf_adapter.render_lesson(lesson_pack, subtitle=user_message[:120])
             else:
                 pdf_text = _clean_block_markers_for_pdf(assistant_reply)
-                pdf_filename = generate_pdf_from_markdown(
-                    pdf_text, subtitle=user_message[:120]
-                )
+                pdf_filename = generate_pdf_from_markdown(pdf_text, subtitle=user_message[:120])
             pdf_url = f"/static/{pdf_filename}" if pdf_filename else None
         except Exception as e:
             print(f"Error generating PDF: {e}")
@@ -267,8 +264,7 @@ async def _finalize_lesson(
                 homework_block_text,
                 teacher_phone=teacher_phone,
                 lesson_json=(
-                    lesson_pack.model_dump()
-                    if (lesson_pack and flags.structured_output) else None
+                    lesson_pack.model_dump() if (lesson_pack and flags.structured_output) else None
                 ),
             )
         except Exception as e:
@@ -385,7 +381,7 @@ class JSONBlockAccumulator:
             elif ch == "}":
                 self._depth -= 1
                 if self._depth == 0 and self._block_start >= 0:
-                    block_str = self.buffer[self._block_start:]
+                    block_str = self.buffer[self._block_start :]
                     try:
                         block = json.loads(block_str)
                         if isinstance(block, dict) and "type" in block:
@@ -439,9 +435,7 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
                 "self-test questions. Keep it under "
                 "1000 characters. Topic: " + topic
             )
-            recap = await call_openrouter(
-                CLASSGEN_SYSTEM_PROMPT, study_prompt
-            )
+            recap = await call_openrouter(CLASSGEN_SYSTEM_PROMPT, study_prompt)
             return {
                 "reply": recap or "Could not generate.",
                 "pdf_url": None,
@@ -466,20 +460,22 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
     async def event_stream():
         # Send meta immediately from request parsing
         class_level, subject, topic = _parse_lesson_request(req.message)
-        yield _sse_event("meta", {
-            "subject": subject,
-            "topic": topic,
-            "class_level": class_level,
-        })
+        yield _sse_event(
+            "meta",
+            {
+                "subject": subject,
+                "topic": topic,
+                "class_level": class_level,
+            },
+        )
 
         # Build prompt
         history = get_session_history(req.thread_id, limit=10)
         log_session(req.thread_id, "user", req.message)
         history_context = (
-            "\n".join(
-                [f"{m['role']}: {m['content']}" for m in history]
-            )
-            if history else "No previous context."
+            "\n".join([f"{m['role']}: {m['content']}" for m in history])
+            if history
+            else "No previous context."
         )
         prompt = (
             f"Previous Conversation Context:\n{history_context}"
@@ -490,9 +486,7 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
         accumulator = JSONBlockAccumulator()
         full_text = ""
 
-        async for token in stream_openrouter(
-            CLASSGEN_JSON_SYSTEM_PROMPT, prompt
-        ):
+        async for token in stream_openrouter(CLASSGEN_JSON_SYSTEM_PROMPT, prompt):
             full_text += token
             new_blocks = accumulator.feed(token)
             for block in new_blocks:
@@ -528,7 +522,10 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
             # Cache
             if class_level and subject and topic and pack:
                 cache_lesson(
-                    subject, topic, class_level, full_text,
+                    subject,
+                    topic,
+                    class_level,
+                    full_text,
                     lesson_json=pack.model_dump(),
                 )
         except Exception as e:
@@ -536,10 +533,13 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
             pdf_url = None
             homework_code = None
 
-        yield _sse_event("done", {
-            "pdf_url": pdf_url,
-            "homework_code": homework_code,
-        })
+        yield _sse_event(
+            "done",
+            {
+                "pdf_url": pdf_url,
+                "homework_code": homework_code,
+            },
+        )
 
     return StreamingResponse(
         event_stream(),

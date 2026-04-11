@@ -24,8 +24,7 @@ VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
 VAPID_CLAIMS = {"sub": os.environ.get("VAPID_CONTACT", "mailto:admin@classgen.ng")}
 
 
-def send_push(teacher_id: str, title: str, body: str,
-              url: str = "", tag: str = "") -> int:
+def send_push(teacher_id: str, title: str, body: str, url: str = "", tag: str = "") -> int:
     """Send a push notification to all of a teacher's subscriptions.
 
     Returns the number of successful deliveries.
@@ -38,12 +37,14 @@ def send_push(teacher_id: str, title: str, body: str,
     if not subscriptions:
         return 0
 
-    payload = json.dumps({
-        "title": title,
-        "body": body,
-        "url": url,
-        "tag": tag,
-    })
+    payload = json.dumps(
+        {
+            "title": title,
+            "body": body,
+            "url": url,
+            "tag": tag,
+        }
+    )
 
     sent = 0
     for sub in subscriptions:
@@ -64,9 +65,14 @@ def send_push(teacher_id: str, title: str, body: str,
     return sent
 
 
-def notify_quiz_submission(teacher_id: str, homework_code: str,
-                           student_name: str, score: int, total: int,
-                           base_url: str = "") -> int:
+def notify_quiz_submission(
+    teacher_id: str,
+    homework_code: str,
+    student_name: str,
+    score: int,
+    total: int,
+    base_url: str = "",
+) -> int:
     """Send a push notification when a student submits a quiz."""
     return send_push(
         teacher_id=teacher_id,

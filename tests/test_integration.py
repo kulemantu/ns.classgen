@@ -66,10 +66,13 @@ class TestWebChatLessonGeneration:
         """Given a topic, the chat endpoint returns a lesson with blocks, PDF, and homework code."""
         mock_llm.side_effect = [LESSON_WITH_BLOCKS, QUIZ_JSON]
 
-        response = client.post("/api/chat", json={
-            "message": "SS2 Geography: Water Cycle, 40 minutes",
-            "thread_id": "test_web_001",
-        })
+        response = client.post(
+            "/api/chat",
+            json={
+                "message": "SS2 Geography: Water Cycle, 40 minutes",
+                "thread_id": "test_web_001",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -82,12 +85,17 @@ class TestWebChatLessonGeneration:
     @patch("classgen.api.chat.call_openrouter", new_callable=AsyncMock)
     def test_clarifying_question_no_homework(self, mock_llm):
         """When the LLM asks a clarifying question (no blocks), no PDF or homework is generated."""
-        mock_llm.return_value = "What grade level? SS1, SS2, or SS3?\nSUGGESTIONS: [SS1] | [SS2] | [SS3]"
+        mock_llm.return_value = (
+            "What grade level? SS1, SS2, or SS3?\nSUGGESTIONS: [SS1] | [SS2] | [SS3]"
+        )
 
-        response = client.post("/api/chat", json={
-            "message": "biology",
-            "thread_id": "test_web_002",
-        })
+        response = client.post(
+            "/api/chat",
+            json={
+                "message": "biology",
+                "thread_id": "test_web_002",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -100,10 +108,13 @@ class TestWebChatLessonGeneration:
         """When the LLM returns None (API error), the user gets a friendly message."""
         mock_llm.return_value = None
 
-        response = client.post("/api/chat", json={
-            "message": "SS1 Maths: Algebra",
-            "thread_id": "test_web_003",
-        })
+        response = client.post(
+            "/api/chat",
+            json={
+                "message": "SS1 Maths: Algebra",
+                "thread_id": "test_web_003",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -128,8 +139,16 @@ class TestStudentQuizFlow:
             thread_id="test_teacher",
             lesson_content=LESSON_WITH_BLOCKS,
             quiz_questions=[
-                {"question": "What drives the water cycle?", "options": ["Wind", "Sun", "Moon", "Gravity"], "correct": 1},
-                {"question": "What is evaporation?", "options": ["Rain", "Water to gas", "Ice melting", "Flooding"], "correct": 1},
+                {
+                    "question": "What drives the water cycle?",
+                    "options": ["Wind", "Sun", "Moon", "Gravity"],
+                    "correct": 1,
+                },
+                {
+                    "question": "What is evaporation?",
+                    "options": ["Rain", "Water to gas", "Ice melting", "Flooding"],
+                    "correct": 1,
+                },
             ],
             homework_block="Title: Water Detective\nDetails: Investigate the water cycle.",
         )
@@ -150,11 +169,14 @@ class TestStudentQuizFlow:
 
     def test_quiz_submission_grading(self):
         """Student submits answers and gets correct grading."""
-        response = client.post("/h/INTG01/submit", json={
-            "student_name": "Amina",
-            "student_class": "SS2",
-            "answers": [1, 1],  # both correct
-        })
+        response = client.post(
+            "/h/INTG01/submit",
+            json={
+                "student_name": "Amina",
+                "student_class": "SS2",
+                "answers": [1, 1],  # both correct
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["score"] == 2
@@ -163,11 +185,14 @@ class TestStudentQuizFlow:
 
     def test_quiz_submission_partial(self):
         """Student gets partial score with some wrong answers."""
-        response = client.post("/h/INTG01/submit", json={
-            "student_name": "Chidi",
-            "student_class": "SS2",
-            "answers": [0, 1],  # first wrong, second correct
-        })
+        response = client.post(
+            "/h/INTG01/submit",
+            json={
+                "student_name": "Chidi",
+                "student_class": "SS2",
+                "answers": [0, 1],  # first wrong, second correct
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["score"] == 1
@@ -192,10 +217,13 @@ class TestTeacherProfileFlow:
 
     def test_register_teacher(self):
         """Teacher registers with a name and gets a profile."""
-        response = client.post("/api/teacher/register", json={
-            "thread_id": "teacher_intg_001",
-            "name": "Mrs. Integration",
-        })
+        response = client.post(
+            "/api/teacher/register",
+            json={
+                "thread_id": "teacher_intg_001",
+                "name": "Mrs. Integration",
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["registered"] is True
@@ -212,10 +240,13 @@ class TestTeacherProfileFlow:
 
     def test_add_class(self):
         """Teacher can add a class to their profile."""
-        response = client.post("/api/teacher/classes", json={
-            "thread_id": "teacher_intg_001",
-            "class_name": "SS2 Biology",
-        })
+        response = client.post(
+            "/api/teacher/classes",
+            json={
+                "thread_id": "teacher_intg_001",
+                "class_name": "SS2 Biology",
+            },
+        )
         assert response.status_code == 200
         assert "SS2 Biology" in response.json()["classes"]
 
@@ -254,14 +285,18 @@ class TestCommandRouting:
         """Non-command text returns None (falls through to LLM)."""
         from classgen.commands.router import handle_command
 
-        result = handle_command("SS2 Biology: Photosynthesis", "+2341234567890", "https://class.dater.world")
+        result = handle_command(
+            "SS2 Biology: Photosynthesis", "+2341234567890", "https://class.dater.world"
+        )
         assert result is None
 
     def test_register_flow(self):
         """Register command creates a teacher profile."""
         from classgen.commands.router import handle_command
 
-        result = handle_command("register Mrs. CommandTest", "+23400001111", "https://class.dater.world")
+        result = handle_command(
+            "register Mrs. CommandTest", "+23400001111", "https://class.dater.world"
+        )
         assert result is not None
         assert "Mrs. CommandTest" in result.reply
         assert "/t/" in result.reply

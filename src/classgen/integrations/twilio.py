@@ -20,6 +20,7 @@ _client = None
 if _account_sid and _auth_token:
     try:
         from twilio.rest import Client
+
         _client = Client(_account_sid, _auth_token)
     except Exception as e:
         print(f"Warning: Failed to initialize Twilio client: {e}")
@@ -35,8 +36,7 @@ def send_whatsapp(to: str, body: str) -> bool:
     try:
         to_wa = to if to.startswith("whatsapp:") else f"whatsapp:{to}"
         from_wa = (
-            _from_number if _from_number.startswith("whatsapp:")
-            else f"whatsapp:{_from_number}"
+            _from_number if _from_number.startswith("whatsapp:") else f"whatsapp:{_from_number}"
         )
         _client.messages.create(body=body, from_=from_wa, to=to_wa)
         return True
@@ -45,9 +45,14 @@ def send_whatsapp(to: str, body: str) -> bool:
         return False
 
 
-def send_quiz_summary(teacher_phone: str, homework_code: str,
-                      total_submissions: int, avg_score: float,
-                      total_questions: int, base_url: str) -> bool:
+def send_quiz_summary(
+    teacher_phone: str,
+    homework_code: str,
+    total_submissions: int,
+    avg_score: float,
+    total_questions: int,
+    base_url: str,
+) -> bool:
     """Send a quiz results summary to a teacher after students submit."""
     body = (
         f"*Quiz results for {homework_code}*\n\n"
@@ -58,9 +63,9 @@ def send_quiz_summary(teacher_phone: str, homework_code: str,
     return send_whatsapp(teacher_phone, body)
 
 
-def send_parent_digest(parent_phone: str, teacher_name: str,
-                       class_name: str, lessons: list[str],
-                       homework: str) -> bool:
+def send_parent_digest(
+    parent_phone: str, teacher_name: str, class_name: str, lessons: list[str], homework: str
+) -> bool:
     """Send a weekly digest to a parent."""
     lesson_list = ", ".join(lessons) if lessons else "No lessons this week"
     body = (

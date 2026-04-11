@@ -34,7 +34,7 @@ class TestCallOpenrouterJson:
     async def test_response_format_when_flag_on(self):
         """With FF_JSON_RESPONSE_FORMAT, response_format is passed."""
         mock_completion = MagicMock()
-        mock_completion.choices = [MagicMock(message=MagicMock(content='{}'))]
+        mock_completion.choices = [MagicMock(message=MagicMock(content="{}"))]
         mock_create = AsyncMock(return_value=mock_completion)
 
         with (
@@ -44,7 +44,7 @@ class TestCallOpenrouterJson:
             mock_client.chat.completions.create = mock_create
             result = await call_openrouter_json("sys", "user")
 
-        assert result == '{}'
+        assert result == "{}"
         call_kwargs = mock_create.call_args
         assert call_kwargs.kwargs.get("response_format") == {"type": "json_object"}
 
@@ -76,6 +76,7 @@ class TestCallOpenrouterJson:
     @pytest.mark.asyncio
     async def test_returns_none_on_unrelated_error(self):
         """Non-response_format errors return None (no retry)."""
+
         async def mock_create(**kwargs):
             raise Exception("connection timeout")
 
@@ -91,6 +92,7 @@ class TestCallOpenrouterJson:
     @pytest.mark.asyncio
     async def test_returns_none_on_error_without_flag(self):
         """Errors without the flag return None."""
+
         async def mock_create(**kwargs):
             raise Exception("network error")
 
@@ -178,6 +180,7 @@ class TestStreamOpenrouter:
     @pytest.mark.asyncio
     async def test_error_stops_gracefully(self):
         """Exception during streaming stops the generator without crashing."""
+
         async def mock_create(**kwargs):
             raise Exception("stream error")
 

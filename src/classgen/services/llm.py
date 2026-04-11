@@ -34,8 +34,8 @@ async def call_openrouter(
             model=model,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ]
+                {"role": "user", "content": user_message},
+            ],
         )
         return completion.choices[0].message.content
     except Exception as e:

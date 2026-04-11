@@ -54,12 +54,7 @@ def get_school_teachers(school_slug: str) -> list:
     if not supabase:
         return [t for t in _mem_teachers.values() if t.get("school_slug") == school_slug]
     try:
-        response = (
-            supabase.table("teachers")
-            .select("*")
-            .eq("school_slug", school_slug)
-            .execute()
-        )
+        response = supabase.table("teachers").select("*").eq("school_slug", school_slug).execute()
         return response.data
     except Exception as e:
         print(f"Error listing school teachers: {e}")

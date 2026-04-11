@@ -38,8 +38,7 @@ def _unique_slug(slug: str, phone: str) -> str:
 # --- Teachers ---
 
 
-def save_teacher(phone: str, name: str, school: str = "",
-                 school_slug: str = "") -> dict:
+def save_teacher(phone: str, name: str, school: str = "", school_slug: str = "") -> dict:
     """Register or update a teacher. Returns the teacher record."""
     slug = _unique_slug(_make_slug(name), phone)
     record = {
@@ -143,9 +142,12 @@ def update_teacher_name(phone: str, new_name: str) -> dict | None:
         teacher["slug"] = new_slug
         return teacher
     try:
-        supabase.table("teachers").update({
-            "name": new_name, "slug": new_slug,
-        }).eq("phone", phone).execute()
+        supabase.table("teachers").update(
+            {
+                "name": new_name,
+                "slug": new_slug,
+            }
+        ).eq("phone", phone).execute()
         teacher["name"] = new_name
         teacher["slug"] = new_slug
         return teacher
@@ -172,13 +174,10 @@ def get_teacher_lesson_stats(teacher_phone: str) -> dict:
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     if not supabase:
-        codes = [hw for hw in _mem_homework.values()
-                 if hw.get("teacher_phone") == teacher_phone]
+        codes = [hw for hw in _mem_homework.values() if hw.get("teacher_phone") == teacher_phone]
         total = len(codes)
-        this_week = sum(1 for hw in codes
-                        if hw.get("created_at", "") >= week_start.isoformat())
-        this_month = sum(1 for hw in codes
-                         if hw.get("created_at", "") >= month_start.isoformat())
+        this_week = sum(1 for hw in codes if hw.get("created_at", "") >= week_start.isoformat())
+        this_month = sum(1 for hw in codes if hw.get("created_at", "") >= month_start.isoformat())
         return {"total": total, "this_week": this_week, "this_month": this_month}
     try:
         resp = (
@@ -189,10 +188,10 @@ def get_teacher_lesson_stats(teacher_phone: str) -> dict:
         )
         all_codes = resp.data
         total = len(all_codes)
-        this_week = sum(1 for hw in all_codes
-                        if hw.get("created_at", "") >= week_start.isoformat())
-        this_month = sum(1 for hw in all_codes
-                         if hw.get("created_at", "") >= month_start.isoformat())
+        this_week = sum(1 for hw in all_codes if hw.get("created_at", "") >= week_start.isoformat())
+        this_month = sum(
+            1 for hw in all_codes if hw.get("created_at", "") >= month_start.isoformat()
+        )
         return {"total": total, "this_week": this_week, "this_month": this_month}
     except Exception as e:
         print(f"Error getting teacher stats: {e}")
@@ -209,11 +208,7 @@ def is_onboarded(phone: str) -> bool:
         return bool(teacher and teacher.get("onboarded_at"))
     try:
         resp = (
-            supabase.table("teachers")
-            .select("onboarded_at")
-            .eq("phone", phone)
-            .limit(1)
-            .execute()
+            supabase.table("teachers").select("onboarded_at").eq("phone", phone).limit(1).execute()
         )
         if resp.data:
             return resp.data[0].get("onboarded_at") is not None
@@ -232,9 +227,7 @@ def mark_onboarded(phone: str) -> bool:
             teacher["onboarded_at"] = now
         return True
     try:
-        supabase.table("teachers").update(
-            {"onboarded_at": now}
-        ).eq("phone", phone).execute()
+        supabase.table("teachers").update({"onboarded_at": now}).eq("phone", phone).execute()
         return True
     except Exception as e:
         print(f"Error marking onboarded: {e}")

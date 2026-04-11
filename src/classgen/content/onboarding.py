@@ -10,10 +10,7 @@ from __future__ import annotations
 ONBOARDING = {
     "brand": "ClassGen",
     "tagline": "Your AI lesson assistant",
-    "subtitle": (
-        "Ready-to-teach lesson packs for your classroom"
-        " \u2014 in seconds"
-    ),
+    "subtitle": ("Ready-to-teach lesson packs for your classroom \u2014 in seconds"),
     "slides": [
         {
             "heading": "Type a topic. Get a lesson pack.",

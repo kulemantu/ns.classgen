@@ -25,7 +25,7 @@ static_dir = os.environ.get("STATIC_DIR", str(_APP_ROOT / "static"))
 
 def _sanitize(text: str) -> str:
     """Quick latin-1 sanitization."""
-    return text.encode('latin-1', 'ignore').decode('latin-1')
+    return text.encode("latin-1", "ignore").decode("latin-1")
 
 
 class WorksheetPDF(FPDF):
@@ -38,8 +38,13 @@ class WorksheetPDF(FPDF):
         self.cell(0, 8, self._ws_title, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
         self.set_font("helvetica", size=8)
         self.set_text_color(128, 128, 128)
-        self.cell(0, 5, "Name: _________________________  Class: __________  Date: __________",
-                  new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(
+            0,
+            5,
+            "Name: _________________________  Class: __________  Date: __________",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
         self.set_text_color(0, 0, 0)
         self.ln(4)
 
@@ -56,10 +61,14 @@ def generate_bingo_grid(title: str, words: list[str], grid_size: int = 4) -> str
     epw = pdf.w - pdf.l_margin - pdf.r_margin
 
     pdf.set_font("helvetica", "I", 10)
-    pdf.multi_cell(epw, 5, _sanitize(
-        "Instructions: Your teacher (or a classmate) reads a definition. "
-        "Find and cross out the matching word. First to get a row wins!"
-    ))
+    pdf.multi_cell(
+        epw,
+        5,
+        _sanitize(
+            "Instructions: Your teacher (or a classmate) reads a definition. "
+            "Find and cross out the matching word. First to get a row wins!"
+        ),
+    )
     pdf.ln(6)
 
     # Draw the grid
@@ -85,8 +94,9 @@ def generate_bingo_grid(title: str, words: list[str], grid_size: int = 4) -> str
     return filename
 
 
-def generate_fill_in_blank(title: str, paragraphs: list[str],
-                           answer_key: list[str] | None = None) -> str:
+def generate_fill_in_blank(
+    title: str, paragraphs: list[str], answer_key: list[str] | None = None
+) -> str:
     """Generate a fill-in-the-blank worksheet.
 
     Paragraphs should contain _______ (underscores) for blanks.
@@ -96,9 +106,9 @@ def generate_fill_in_blank(title: str, paragraphs: list[str],
     epw = pdf.w - pdf.l_margin - pdf.r_margin
 
     pdf.set_font("helvetica", "I", 10)
-    pdf.multi_cell(epw, 5, _sanitize(
-        "Instructions: Fill in the blanks using what you learned in class."
-    ))
+    pdf.multi_cell(
+        epw, 5, _sanitize("Instructions: Fill in the blanks using what you learned in class.")
+    )
     pdf.ln(4)
 
     pdf.set_font("helvetica", size=11)

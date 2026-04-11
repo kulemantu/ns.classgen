@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 
 # Regex for parsing structured lesson blocks from LLM output.
-BLOCK_PATTERN = re.compile(r'\[BLOCK_START_(\w+)\](.*?)\[BLOCK_END\]', re.DOTALL)
+BLOCK_PATTERN = re.compile(r"\[BLOCK_START_(\w+)\](.*?)\[BLOCK_END\]", re.DOTALL)
 
 # Shared system prompt -- single source of truth for both endpoints
 CLASSGEN_SYSTEM_PROMPT = """You are ClassGen, a lesson pack engine for secondary school teachers in Africa.

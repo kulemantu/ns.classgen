@@ -90,7 +90,6 @@ class TestGreetings:
 
 
 class TestSessionCommands:
-
     def setup_method(self):
         _cleanup()
 
@@ -126,7 +125,6 @@ class TestSessionCommands:
 
 
 class TestHelp:
-
     def setup_method(self):
         _cleanup()
 
@@ -153,7 +151,6 @@ class TestHelp:
 
 
 class TestRegistration:
-
     def setup_method(self):
         _cleanup()
 
@@ -199,7 +196,6 @@ class TestRegistration:
 
 
 class TestMyPage:
-
     def setup_method(self):
         _cleanup()
 
@@ -228,7 +224,6 @@ class TestMyPage:
 
 
 class TestAddClass:
-
     def setup_method(self):
         _cleanup()
 
@@ -258,7 +253,6 @@ class TestAddClass:
 
 
 class TestMyCodes:
-
     def setup_method(self):
         _cleanup()
 
@@ -273,7 +267,11 @@ class TestMyCodes:
         from classgen.data.homework import save_homework_code
 
         save_homework_code(
-            "TEST01", "thread1", "lesson content", [], "hw block",
+            "TEST01",
+            "thread1",
+            "lesson content",
+            [],
+            "hw block",
             teacher_phone=PHONE,
         )
         result = handle_command("my codes", PHONE, BASE)
@@ -287,7 +285,6 @@ class TestMyCodes:
 
 
 class TestResults:
-
     def setup_method(self):
         _cleanup()
 
@@ -321,7 +318,6 @@ class TestResults:
 
 
 class TestLeaderboard:
-
     def setup_method(self):
         _cleanup()
 
@@ -353,7 +349,6 @@ class TestLeaderboard:
 
 
 class TestProgress:
-
     def setup_method(self):
         _cleanup()
 
@@ -383,7 +378,6 @@ class TestProgress:
 
 
 class TestStats:
-
     def setup_method(self):
         _cleanup()
 
@@ -406,7 +400,6 @@ class TestStats:
 
 
 class TestStudyMode:
-
     def setup_method(self):
         _cleanup()
 
@@ -425,7 +418,6 @@ class TestStudyMode:
 
 
 class TestSuggest:
-
     def setup_method(self):
         _cleanup()
 
@@ -433,6 +425,7 @@ class TestSuggest:
         """'suggest' (bare) lists the teacher's registered classes."""
         _register_teacher()
         from classgen.data.teachers import add_teacher_class
+
         add_teacher_class(PHONE, "SS2 Biology")
 
         result = handle_command("suggest", PHONE, BASE)
@@ -466,7 +459,6 @@ class TestSuggest:
 
 
 class TestCovered:
-
     def setup_method(self):
         _cleanup()
 
@@ -474,10 +466,7 @@ class TestCovered:
         """'covered SS2 Biology' with no generated lessons says none."""
         result = handle_command("covered SS2 Biology", PHONE, BASE)
         assert result is not None
-        assert (
-            "No lessons" in result.reply
-            or "no lessons" in result.reply.lower()
-        )
+        assert "No lessons" in result.reply or "no lessons" in result.reply.lower()
 
     def test_covered_with_lessons(self):
         """After generating lessons, 'covered' lists the topics."""
@@ -501,15 +490,11 @@ class TestFallThrough:
         _cleanup()
 
     def test_unknown_text_returns_none(self):
-        result = handle_command(
-            "SS2 Biology: Photosynthesis", PHONE, BASE
-        )
+        result = handle_command("SS2 Biology: Photosynthesis", PHONE, BASE)
         assert result is None
 
     def test_random_sentence_returns_none(self):
-        result = handle_command(
-            "Tell me about the solar system", PHONE, BASE
-        )
+        result = handle_command("Tell me about the solar system", PHONE, BASE)
         assert result is None
 
     def test_empty_string_returns_none(self):

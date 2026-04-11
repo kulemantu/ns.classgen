@@ -91,9 +91,7 @@ async def submit_quiz(request: Request, code: str, submission: QuizSubmission):
 
     questions = hw.get("quiz_questions", [])
     if not questions:
-        return JSONResponse(
-            {"error": "No quiz available for this code"}, status_code=400
-        )
+        return JSONResponse({"error": "No quiz available for this code"}, status_code=400)
 
     total = len(questions)
     score = 0

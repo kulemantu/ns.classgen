@@ -29,11 +29,14 @@ def save_push_subscription(teacher_id: str, subscription: dict) -> bool:
         print(f"[local] Saved push subscription for {teacher_id}")
         return True
     try:
-        supabase.table("push_subscriptions").upsert({
-            "teacher_id": teacher_id,
-            "endpoint": endpoint,
-            "subscription": subscription,
-        }, on_conflict="endpoint").execute()
+        supabase.table("push_subscriptions").upsert(
+            {
+                "teacher_id": teacher_id,
+                "endpoint": endpoint,
+                "subscription": subscription,
+            },
+            on_conflict="endpoint",
+        ).execute()
         return True
     except Exception as e:
         print(f"Error saving push subscription: {e}")

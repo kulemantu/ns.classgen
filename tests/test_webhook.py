@@ -62,24 +62,30 @@ class TestVoiceNoteRejection:
 
     def test_voice_note_rejected(self):
         """Audio media type triggers graceful rejection."""
-        response = client.post("/webhook/twilio", data={
-            "From": "whatsapp:+23412345678",
-            "Body": "",
-            "MediaUrl0": "https://api.twilio.com/audio.ogg",
-            "MediaContentType0": "audio/ogg",
-        })
+        response = client.post(
+            "/webhook/twilio",
+            data={
+                "From": "whatsapp:+23412345678",
+                "Body": "",
+                "MediaUrl0": "https://api.twilio.com/audio.ogg",
+                "MediaContentType0": "audio/ogg",
+            },
+        )
         assert response.status_code == 200
         assert "Voice notes" in response.text
         assert "application/xml" in response.headers["content-type"]
 
     def test_voice_note_with_body_still_rejected(self):
         """Even if Body is present alongside audio, the audio triggers rejection."""
-        response = client.post("/webhook/twilio", data={
-            "From": "whatsapp:+23412345678",
-            "Body": "some text",
-            "MediaUrl0": "https://api.twilio.com/voice.mp3",
-            "MediaContentType0": "audio/mpeg",
-        })
+        response = client.post(
+            "/webhook/twilio",
+            data={
+                "From": "whatsapp:+23412345678",
+                "Body": "some text",
+                "MediaUrl0": "https://api.twilio.com/voice.mp3",
+                "MediaContentType0": "audio/mpeg",
+            },
+        )
         assert response.status_code == 200
         assert "Voice notes" in response.text
 
@@ -94,19 +100,25 @@ class TestEmptyBody:
     the welcome message without calling the LLM."""
 
     def test_empty_body_welcome(self):
-        response = client.post("/webhook/twilio", data={
-            "From": "whatsapp:+23412345678",
-            "Body": "",
-        })
+        response = client.post(
+            "/webhook/twilio",
+            data={
+                "From": "whatsapp:+23412345678",
+                "Body": "",
+            },
+        )
         assert response.status_code == 200
         assert "Welcome to ClassGen" in response.text
 
     def test_whitespace_only_welcome(self):
         """Whitespace-only body is treated as empty."""
-        response = client.post("/webhook/twilio", data={
-            "From": "whatsapp:+23412345678",
-            "Body": "   ",
-        })
+        response = client.post(
+            "/webhook/twilio",
+            data={
+                "From": "whatsapp:+23412345678",
+                "Body": "   ",
+            },
+        )
         assert response.status_code == 200
         assert "Welcome to ClassGen" in response.text
 
@@ -123,10 +135,13 @@ class TestGreetingBypass:
     @patch("classgen.api.webhook.call_openrouter", new_callable=AsyncMock)
     def test_hello_no_llm(self, mock_llm):
         """'hello' returns a welcome message without calling call_openrouter."""
-        response = client.post("/webhook/twilio", data={
-            "From": "whatsapp:+23412345678",
-            "Body": "hello",
-        })
+        response = client.post(
+            "/webhook/twilio",
+            data={
+                "From": "whatsapp:+23412345678",
+                "Body": "hello",
+            },
+        )
         assert response.status_code == 200
         assert "Welcome to ClassGen" in response.text
         mock_llm.assert_not_called()
@@ -134,10 +149,13 @@ class TestGreetingBypass:
     @patch("classgen.api.webhook.call_openrouter", new_callable=AsyncMock)
     def test_help_no_llm(self, mock_llm):
         """'help' returns the command menu without calling call_openrouter."""
-        response = client.post("/webhook/twilio", data={
-            "From": "whatsapp:+23412345678",
-            "Body": "help",
-        })
+        response = client.post(
+            "/webhook/twilio",
+            data={
+                "From": "whatsapp:+23412345678",
+                "Body": "help",
+            },
+        )
         assert response.status_code == 200
         assert "Commands" in response.text
         mock_llm.assert_not_called()
@@ -164,22 +182,35 @@ class TestNonAudioMedia:
         return_value="This is a clarifying reply.",
     )
     def test_image_media_not_rejected(
-        self, mock_llm, mock_log, mock_hist, mock_pdf,
-        mock_cmd, mock_log_usage, mock_check,
+        self,
+        mock_llm,
+        mock_log,
+        mock_hist,
+        mock_pdf,
+        mock_cmd,
+        mock_log_usage,
+        mock_check,
     ):
         """An image attachment with text body is processed normally."""
         mock_check.return_value = type(
-            "U", (), {
-                "allowed": True, "remaining": 5,
-                "tier": "free", "message": "",
+            "U",
+            (),
+            {
+                "allowed": True,
+                "remaining": 5,
+                "tier": "free",
+                "message": "",
             },
         )()
-        response = client.post("/webhook/twilio", data={
-            "From": "whatsapp:+23412345678",
-            "Body": "Check this diagram",
-            "MediaUrl0": "https://api.twilio.com/image.jpg",
-            "MediaContentType0": "image/jpeg",
-        })
+        response = client.post(
+            "/webhook/twilio",
+            data={
+                "From": "whatsapp:+23412345678",
+                "Body": "Check this diagram",
+                "MediaUrl0": "https://api.twilio.com/image.jpg",
+                "MediaContentType0": "image/jpeg",
+            },
+        )
         assert response.status_code == 200
         # Should NOT contain the voice note rejection
         assert "Voice notes" not in response.text
@@ -199,17 +230,15 @@ class TestWhatsappSummary:
     def test_all_block_titles_present(self):
         """Each block type label appears in the summary."""
         summary = _whatsapp_summary(SAMPLE_LESSON, "WATR42", "https://x.com")
-        assert "Hook" in summary            # OPENER -> Hook
-        assert "Concept" in summary         # EXPLAIN -> Concept
-        assert "Activity" in summary        # ACTIVITY -> Activity
-        assert "Homework" in summary        # HOMEWORK -> Homework
-        assert "Notes" in summary           # TEACHER_NOTES -> Notes
+        assert "Hook" in summary  # OPENER -> Hook
+        assert "Concept" in summary  # EXPLAIN -> Concept
+        assert "Activity" in summary  # ACTIVITY -> Activity
+        assert "Homework" in summary  # HOMEWORK -> Homework
+        assert "Notes" in summary  # TEACHER_NOTES -> Notes
 
     def test_homework_code_included(self):
         """When a homework code is provided, it appears with the student URL."""
-        summary = _whatsapp_summary(
-            SAMPLE_LESSON, "WATR42", "https://test.example.com"
-        )
+        summary = _whatsapp_summary(SAMPLE_LESSON, "WATR42", "https://test.example.com")
         assert "WATR42" in summary
         assert "https://test.example.com/h/WATR42" in summary
 

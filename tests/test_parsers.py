@@ -102,7 +102,6 @@ class TestParseLessonBlocks:
         # Only opening marker, no closing
         assert parse_lesson_blocks("[BLOCK_START_OPENER] some text") is None
 
-
     def test_application_legacy_name_mapped(self):
         """APPLICATION → activity (legacy block name mapping)."""
         text = (
@@ -136,9 +135,7 @@ class TestParseLessonBlocks:
     def test_block_without_title_structure(self):
         """Block body with no Title/Summary/Details uses fallback."""
         text = (
-            "[BLOCK_START_OPENER]\n"
-            "Just some raw text without the expected structure.\n"
-            "[BLOCK_END]"
+            "[BLOCK_START_OPENER]\nJust some raw text without the expected structure.\n[BLOCK_END]"
         )
         pack = parse_lesson_blocks(text)
         assert pack is not None

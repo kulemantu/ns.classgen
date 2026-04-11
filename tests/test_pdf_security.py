@@ -142,17 +142,14 @@ class TestStripImagesForPdf:
 
     def test_data_uri_removed(self):
         """Base64 data:image URIs are stripped."""
-        text = 'See: data:image/png;base64,iVBORw0KGgo= end'
+        text = "See: data:image/png;base64,iVBORw0KGgo= end"
         result = _strip_images_for_pdf(text)
         assert "data:image" not in result
         assert "end" in result
 
     def test_multiple_images_removed(self):
         """Multiple markdown images in one text are all stripped."""
-        text = (
-            "![a](http://x.com/1.png) text "
-            "![b](http://y.com/2.png)"
-        )
+        text = "![a](http://x.com/1.png) text ![b](http://y.com/2.png)"
         result = _strip_images_for_pdf(text)
         assert "![" not in result
         assert "x.com" not in result
@@ -186,10 +183,7 @@ class TestCleanBlockMarkers:
     def test_all_block_types_removed(self):
         """All five block types are cleaned."""
         types = ["OPENER", "EXPLAIN", "ACTIVITY", "HOMEWORK", "TEACHER_NOTES"]
-        text = "\n".join(
-            f"[BLOCK_START_{t}]\nTitle: {t}\n[BLOCK_END]"
-            for t in types
-        )
+        text = "\n".join(f"[BLOCK_START_{t}]\nTitle: {t}\n[BLOCK_END]" for t in types)
         result = _clean_block_markers_for_pdf(text)
         for t in types:
             assert f"[BLOCK_START_{t}]" not in result
@@ -271,8 +265,6 @@ class TestGeneratePdf:
 
     def test_school_name_in_header(self):
         """Passing school_name customizes the PDF header."""
-        filename = generate_pdf_from_markdown(
-            "Content", school_name="Lagos Grammar School"
-        )
+        filename = generate_pdf_from_markdown("Content", school_name="Lagos Grammar School")
         path = os.path.join(_STATIC_DIR, filename)
         assert os.path.exists(path)

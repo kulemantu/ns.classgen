@@ -214,9 +214,7 @@ class TestWhatsAppOnboarding:
     @patch("classgen.api.webhook.save_teacher")
     @patch("classgen.api.webhook.is_onboarded", return_value=False)
     @patch("classgen.api.webhook.get_teacher_by_phone", return_value=None)
-    def test_yes_reply_onboards(
-        self, mock_teacher, mock_onboarded, mock_save, mock_mark
-    ):
+    def test_yes_reply_onboards(self, mock_teacher, mock_onboarded, mock_save, mock_mark):
         """Reply 'YES' creates teacher record and marks onboarded."""
         response = client.post(
             "/webhook/twilio",
@@ -229,9 +227,7 @@ class TestWhatsAppOnboarding:
 
     @patch("classgen.api.webhook.is_onboarded", return_value=False)
     @patch("classgen.api.webhook.get_teacher_by_phone", return_value=None)
-    def test_help_passes_through_when_not_onboarded(
-        self, mock_teacher, mock_onboarded
-    ):
+    def test_help_passes_through_when_not_onboarded(self, mock_teacher, mock_onboarded):
         """HELP command still works even before onboarding."""
         response = client.post(
             "/webhook/twilio",
@@ -251,8 +247,17 @@ class TestWhatsAppOnboarding:
     @patch("classgen.api.chat.save_homework_code")
     @patch("classgen.api.webhook.is_onboarded", return_value=True)
     def test_onboarded_user_proceeds_normally(
-        self, mock_onboarded, mock_save_hw, mock_code, mock_llm,
-        mock_log, mock_hist, mock_pdf, mock_cmd, mock_usage_log, mock_check,
+        self,
+        mock_onboarded,
+        mock_save_hw,
+        mock_code,
+        mock_llm,
+        mock_log,
+        mock_hist,
+        mock_pdf,
+        mock_cmd,
+        mock_usage_log,
+        mock_check,
     ):
         """Onboarded user skips welcome and gets normal lesson flow."""
         mock_check.return_value = type(

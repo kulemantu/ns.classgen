@@ -34,6 +34,7 @@ from classgen.data.threads import set_active_thread
 
 # --- Command implementations ---
 
+
 def _cmd_reset(phone: str) -> CommandResult:
     new_id = f"{phone}_{int(time.time())}"
     set_active_thread(phone, new_id)
@@ -46,31 +47,33 @@ def _cmd_reset(phone: str) -> CommandResult:
 
 
 def _cmd_help(base_url: str) -> CommandResult:
-    return CommandResult(reply=(
-        "*ClassGen Commands*\n\n"
-        "Send any topic to generate a lesson:\n"
-        '  _"SS2 Biology: Photosynthesis"_\n\n'
-        "*Profile*\n"
-        "  register [Name] -- create your profile\n"
-        "  my page -- view your profile URL\n"
-        "  add class: SS2 Biology -- add a class\n\n"
-        "*Homework & Results*\n"
-        "  my codes -- list your recent codes\n"
-        "  results CODE -- quiz results summary\n"
-        "  log CODE -- submission order & top scorer\n"
-        "  leaderboard CODE -- top students\n"
-        "  progress [Name] [Class] -- student history\n\n"
-        "*Parents*\n"
-        "  subscribe parent [phone] [name] [class]\n\n"
-        "*Curriculum*\n"
-        "  suggest [class] -- topic suggestions\n"
-        "  covered [class] -- what you've taught\n\n"
-        "*Other*\n"
-        "  stats -- your lesson stats\n"
-        "  study [topic] -- quick recap\n"
-        "  new -- start a fresh lesson\n"
-        "  help -- this menu"
-    ))
+    return CommandResult(
+        reply=(
+            "*ClassGen Commands*\n\n"
+            "Send any topic to generate a lesson:\n"
+            '  _"SS2 Biology: Photosynthesis"_\n\n'
+            "*Profile*\n"
+            "  register [Name] -- create your profile\n"
+            "  my page -- view your profile URL\n"
+            "  add class: SS2 Biology -- add a class\n\n"
+            "*Homework & Results*\n"
+            "  my codes -- list your recent codes\n"
+            "  results CODE -- quiz results summary\n"
+            "  log CODE -- submission order & top scorer\n"
+            "  leaderboard CODE -- top students\n"
+            "  progress [Name] [Class] -- student history\n\n"
+            "*Parents*\n"
+            "  subscribe parent [phone] [name] [class]\n\n"
+            "*Curriculum*\n"
+            "  suggest [class] -- topic suggestions\n"
+            "  covered [class] -- what you've taught\n\n"
+            "*Other*\n"
+            "  stats -- your lesson stats\n"
+            "  study [topic] -- quick recap\n"
+            "  new -- start a fresh lesson\n"
+            "  help -- this menu"
+        )
+    )
 
 
 def _cmd_register_prompt(phone: str) -> CommandResult:
@@ -78,10 +81,10 @@ def _cmd_register_prompt(phone: str) -> CommandResult:
     if teacher:
         return CommandResult(
             reply=f"You're already registered as *{teacher['name']}*. "
-                  f"Send a topic to generate a lesson, or send 'help' for commands."
+            f"Send a topic to generate a lesson, or send 'help' for commands."
         )
     return CommandResult(
-        reply='To register, send: register [Your Name]\n\nExample: register Mrs. Okafor'
+        reply="To register, send: register [Your Name]\n\nExample: register Mrs. Okafor"
     )
 
 
@@ -104,9 +107,7 @@ def _cmd_register(phone: str, name: str, base_url: str) -> CommandResult:
 def _cmd_my_page(phone: str, base_url: str) -> CommandResult:
     teacher = get_teacher_by_phone(phone)
     if not teacher:
-        return CommandResult(
-            reply="You haven't registered yet. Send: register [Your Name]"
-        )
+        return CommandResult(reply="You haven't registered yet. Send: register [Your Name]")
     slug = teacher.get("slug", "")
     return CommandResult(
         reply=(
@@ -126,9 +127,7 @@ def _cmd_add_class(phone: str, class_name: str) -> CommandResult:
     add_teacher_class(phone, class_name)
     teacher = get_teacher_by_phone(phone)
     classes = teacher.get("classes", []) if teacher else []
-    return CommandResult(
-        reply=f"Added *{class_name}*.\n\nYour classes: {', '.join(classes)}"
-    )
+    return CommandResult(reply=f"Added *{class_name}*.\n\nYour classes: {', '.join(classes)}")
 
 
 def _cmd_results(phone: str, code: str, base_url: str) -> CommandResult:
@@ -137,8 +136,7 @@ def _cmd_results(phone: str, code: str, base_url: str) -> CommandResult:
     results = get_quiz_results(code)
     if not results:
         return CommandResult(
-            reply=f"No submissions yet for *{code}*.\n\n"
-            f"View online: {base_url}/h/{code}/results"
+            reply=f"No submissions yet for *{code}*.\n\nView online: {base_url}/h/{code}/results"
         )
     total = len(results)
     avg = sum(r.get("score", 0) for r in results) / total
@@ -155,9 +153,7 @@ def _cmd_results(phone: str, code: str, base_url: str) -> CommandResult:
 def _cmd_my_codes(phone: str, base_url: str) -> CommandResult:
     codes = list_homework_codes_for_teacher(phone, limit=5)
     if not codes:
-        return CommandResult(
-            reply="No homework codes yet. Generate a lesson to create one!"
-        )
+        return CommandResult(reply="No homework codes yet. Generate a lesson to create one!")
     lines = ["*Your recent homework codes:*\n"]
     for hw in codes:
         code = hw.get("code", "?")
@@ -166,6 +162,7 @@ def _cmd_my_codes(phone: str, base_url: str) -> CommandResult:
 
 
 # --- V2.1 Commands ---
+
 
 def _cmd_leaderboard(code: str) -> CommandResult:
     if not code:
@@ -214,7 +211,7 @@ def _cmd_subscribe_parent(teacher_phone: str, args: str) -> CommandResult:
     if not match:
         return CommandResult(
             reply="Send: subscribe parent [phone] [student name] [class]\n\n"
-                  "Example: subscribe parent +2348012345678 Amina SS2 Biology"
+            "Example: subscribe parent +2348012345678 Amina SS2 Biology"
         )
     parent_phone = match.group(1)
     student_name = match.group(2).strip()
@@ -227,7 +224,7 @@ def _cmd_subscribe_parent(teacher_phone: str, args: str) -> CommandResult:
     save_parent_subscription(parent_phone, teacher_phone, student_name, student_class)
     return CommandResult(
         reply=f"Parent *{parent_phone}* subscribed for *{student_name}* in *{student_class}*.\n\n"
-              f"They'll receive weekly updates via WhatsApp."
+        f"They'll receive weekly updates via WhatsApp."
     )
 
 
@@ -242,6 +239,7 @@ def _cmd_study_mode(topic: str) -> CommandResult:
 
 
 # --- Stats & Submission Log ---
+
 
 def _cmd_stats(phone: str, base_url: str) -> CommandResult:
     """Show teacher's lesson generation stats."""
@@ -280,12 +278,16 @@ def _cmd_submission_log(code: str) -> CommandResult:
 
     # First finisher
     first = by_time[0]
-    lines.append(f"First to finish: *{first.get('student_name', '?')}* "
-                 f"({first.get('score', 0)}/{first.get('total', 5)})")
+    lines.append(
+        f"First to finish: *{first.get('student_name', '?')}* "
+        f"({first.get('score', 0)}/{first.get('total', 5)})"
+    )
 
     # Top scorer
-    lines.append(f"Highest score: *{top.get('student_name', '?')}* "
-                 f"({top.get('score', 0)}/{top.get('total', 5)})\n")
+    lines.append(
+        f"Highest score: *{top.get('student_name', '?')}* "
+        f"({top.get('score', 0)}/{top.get('total', 5)})\n"
+    )
 
     # Full log
     lines.append("_Submission order:_")
@@ -305,6 +307,7 @@ def _cmd_submission_log(code: str) -> CommandResult:
 
 # --- V3.0a Commands ---
 
+
 def _cmd_suggest(phone: str, class_name: str) -> CommandResult:
     """Suggest topics from curriculum for a class."""
     teacher = get_teacher_by_phone(phone)
@@ -318,9 +321,9 @@ def _cmd_suggest(phone: str, class_name: str) -> CommandResult:
             return CommandResult(reply="Add a class first. Send: add class: SS2 Biology")
         subjects = list_subjects()
         return CommandResult(
-            reply="*Which class?*\n\n" +
-                  "\n".join(f"  suggest {c}" for c in classes) +
-                  f"\n\nAvailable subjects: {', '.join(subjects)}"
+            reply="*Which class?*\n\n"
+            + "\n".join(f"  suggest {c}" for c in classes)
+            + f"\n\nAvailable subjects: {', '.join(subjects)}"
         )
 
     exam_board, subject, class_level = parse_class_string(class_name)
@@ -333,7 +336,7 @@ def _cmd_suggest(phone: str, class_name: str) -> CommandResult:
     if not uncovered and not done:
         return CommandResult(
             reply=f"No curriculum data found for {class_name}. "
-                  f"Available subjects: {', '.join(list_subjects())}"
+            f"Available subjects: {', '.join(list_subjects())}"
         )
 
     lines = [f"*Topics for {class_level} {subject}*\n"]

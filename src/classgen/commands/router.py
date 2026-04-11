@@ -47,9 +47,9 @@ def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None
     # --- Greetings (don't waste LLM tokens) ---
     if lower in ("hi", "hello", "hey", "good morning", "good afternoon", "good evening"):
         return CommandResult(
-            reply='Welcome to ClassGen! Send a topic to generate a lesson '
-                  '-- e.g. "SS2 Biology: Photosynthesis"\n\n'
-                  'Send "help" for all commands.'
+            reply="Welcome to ClassGen! Send a topic to generate a lesson "
+            '-- e.g. "SS2 Biology: Photosynthesis"\n\n'
+            'Send "help" for all commands.'
         )
 
     # --- Session commands ---
@@ -117,7 +117,7 @@ def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None
         ref = re.sub(r"^confirm\s+", "", text, flags=re.IGNORECASE).strip()
         return CommandResult(
             reply=f"Payment reference *{ref}* noted. "
-                  "Our team will verify and activate your subscription within 24 hours."
+            "Our team will verify and activate your subscription within 24 hours."
         )
 
     if lower.startswith("study "):

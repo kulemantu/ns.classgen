@@ -63,9 +63,7 @@ class TestLessonPack:
         assert isinstance(pack.blocks[4], TeacherNotesBlock)
 
     def test_invalid_block_type_rejected(self):
-        data = {
-            "blocks": [{"type": "unknown_type", "title": "Test", "body": "Test"}]
-        }
+        data = {"blocks": [{"type": "unknown_type", "title": "Test", "body": "Test"}]}
         with pytest.raises(ValidationError):
             LessonPack.model_validate(data)
 

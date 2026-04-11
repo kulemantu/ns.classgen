@@ -79,9 +79,7 @@ class TestHomeworkTTLExpiry:
             quiz_questions=[],
             homework_block="block",
         )
-        fifteen_days_ago = (
-            datetime.now(timezone.utc) - timedelta(days=15)
-        ).isoformat()
+        fifteen_days_ago = (datetime.now(timezone.utc) - timedelta(days=15)).isoformat()
         _mem_homework["EXP15"]["created_at"] = fifteen_days_ago
 
         assert get_homework_code("EXP15") is None
@@ -95,9 +93,7 @@ class TestHomeworkTTLExpiry:
             quiz_questions=[],
             homework_block="block",
         )
-        thirteen_days_ago = (
-            datetime.now(timezone.utc) - timedelta(days=13)
-        ).isoformat()
+        thirteen_days_ago = (datetime.now(timezone.utc) - timedelta(days=13)).isoformat()
         _mem_homework["REC13"]["created_at"] = thirteen_days_ago
 
         result = get_homework_code("REC13")
@@ -114,10 +110,7 @@ class TestHomeworkTTLExpiry:
             quiz_questions=[],
             homework_block="block",
         )
-        just_under = (
-            datetime.now(timezone.utc)
-            - timedelta(days=13, hours=23)
-        ).isoformat()
+        just_under = (datetime.now(timezone.utc) - timedelta(days=13, hours=23)).isoformat()
         _mem_homework["EDGE"]["created_at"] = just_under
 
         result = get_homework_code("EDGE")
@@ -193,10 +186,12 @@ class TestTeacherUpsertPreservesData:
     @patch("classgen.data.teachers.supabase", None)
     def test_name_actually_changes(self):
         save_teacher(
-            phone="+2349000000002", name="Old Name",
+            phone="+2349000000002",
+            name="Old Name",
         )
         save_teacher(
-            phone="+2349000000002", name="New Name",
+            phone="+2349000000002",
+            name="New Name",
         )
 
         teacher = get_teacher_by_phone("+2349000000002")
@@ -341,9 +336,7 @@ class TestWeeklyUsageReset:
         # Back-date the entry to last week
         now = datetime.now(timezone.utc)
         last_week = now - timedelta(days=8)
-        _mem_usage[phone][0]["created_at"] = (
-            last_week.isoformat()
-        )
+        _mem_usage[phone][0]["created_at"] = last_week.isoformat()
 
         assert get_weekly_usage(phone) == 0
 
@@ -363,12 +356,12 @@ class TestWeeklyUsageReset:
 
         now = datetime.now(timezone.utc)
         # Monday of this week at 00:00
-        monday = (
-            now.replace(
-                hour=0, minute=0, second=0, microsecond=0,
-            )
-            - timedelta(days=now.weekday())
-        )
+        monday = now.replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        ) - timedelta(days=now.weekday())
         sunday_before = monday - timedelta(hours=1)
 
         # Create two entries manually

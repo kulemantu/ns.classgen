@@ -18,8 +18,9 @@ _mem_submissions: dict[str, list] = {}
 # --- Quiz submissions ---
 
 
-def save_quiz_submission(homework_code: str, student_name: str, student_class: str,
-                         answers: list, score: int, total: int) -> bool:
+def save_quiz_submission(
+    homework_code: str, student_name: str, student_class: str, answers: list, score: int, total: int
+) -> bool:
     entry = {
         "homework_code": homework_code,
         "student_name": student_name,
@@ -34,14 +35,16 @@ def save_quiz_submission(homework_code: str, student_name: str, student_class: s
         print(f"[local] Saved submission for {homework_code} by {student_name}")
         return True
     try:
-        supabase.table("quiz_submissions").insert({
-            "homework_code": homework_code,
-            "student_name": student_name,
-            "student_class": student_class,
-            "answers": answers,
-            "score": score,
-            "total": total,
-        }).execute()
+        supabase.table("quiz_submissions").insert(
+            {
+                "homework_code": homework_code,
+                "student_name": student_name,
+                "student_class": student_class,
+                "answers": answers,
+                "score": score,
+                "total": total,
+            }
+        ).execute()
         return True
     except Exception as e:
         print(f"Error saving quiz submission: {e}")
@@ -71,8 +74,10 @@ def get_student_progress(student_name: str, student_class: str) -> list:
         results = []
         for subs in _mem_submissions.values():
             for s in subs:
-                if (s.get("student_name") == student_name
-                        and s.get("student_class") == student_class):
+                if (
+                    s.get("student_name") == student_name
+                    and s.get("student_class") == student_class
+                ):
                     results.append(s)
         return sorted(results, key=lambda x: x.get("created_at") or "", reverse=True)
     try:

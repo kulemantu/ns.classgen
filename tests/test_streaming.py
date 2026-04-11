@@ -64,9 +64,7 @@ class TestJSONBlockAccumulator:
 
     def test_blocks_emitted_list_tracks(self):
         acc = JSONBlockAccumulator()
-        text = json.dumps({
-            "blocks": [{"type": "opener", "title": "A", "body": "B"}]
-        })
+        text = json.dumps({"blocks": [{"type": "opener", "title": "A", "body": "B"}]})
         for ch in text:
             acc.feed(ch)
         assert len(acc.blocks_emitted) == 1
@@ -77,14 +75,14 @@ class TestJSONBlockAccumulator:
         block = {
             "type": "explain",
             "title": "T",
-            "body": 'The equation is {x: 1, y: 2}',
+            "body": "The equation is {x: 1, y: 2}",
         }
         text = json.dumps({"blocks": [block]})
         completed = []
         for ch in text:
             completed.extend(acc.feed(ch))
         assert len(completed) == 1
-        assert completed[0]["body"] == 'The equation is {x: 1, y: 2}'
+        assert completed[0]["body"] == "The equation is {x: 1, y: 2}"
 
     def test_buffer_trimmed_between_blocks(self):
         """Buffer is trimmed after each block to limit memory usage."""
@@ -129,6 +127,7 @@ class TestJSONBlockAccumulator:
 class TestSSEEvent:
     def test_basic_event(self):
         from classgen.api.chat import _sse_event
+
         result = _sse_event("block", {"type": "opener"})
         assert result.startswith("event: block\n")
         assert "data: " in result
@@ -136,12 +135,14 @@ class TestSSEEvent:
 
     def test_event_name_newline_sanitized(self):
         from classgen.api.chat import _sse_event
+
         result = _sse_event("block\nevil: inject", {"ok": True})
         assert "\nevil:" not in result
         assert result.startswith("event: blockevil: inject\n")
 
     def test_string_data_json_serialized(self):
         from classgen.api.chat import _sse_event
+
         result = _sse_event("fallback", "raw text with\nnewlines")
         # String data should be JSON-serialized (quoted)
         assert '"raw text with\\nnewlines"' in result
@@ -150,21 +151,25 @@ class TestSSEEvent:
 class TestHasContent:
     def test_blocks_in_text_no_pack(self):
         from classgen.api.chat import _has_content
+
         assert _has_content("[BLOCK_START_OPENER] test", None) is True
 
     def test_no_blocks_no_pack(self):
         from classgen.api.chat import _has_content
+
         assert _has_content("Just a question", None) is False
 
     def test_no_blocks_with_pack(self):
         from classgen.api.chat import _has_content
         from classgen.core.models import LessonPack, OpenerBlock
+
         pack = LessonPack(blocks=[OpenerBlock(title="T", body="B")])
         assert _has_content("no markers here", pack) is True
 
     def test_no_blocks_empty_pack(self):
         from classgen.api.chat import _has_content
         from classgen.core.models import LessonPack
+
         pack = LessonPack(blocks=[])
         assert _has_content("no markers", pack) is False
 
@@ -191,10 +196,14 @@ class TestConfigEndpoint:
 
     def test_config_sse_false_when_structured_off(self):
         """SSE reports false when structured_output prerequisite is off."""
-        with patch.dict(os.environ, {
-            "FF_SSE_STREAMING": "true",
-            "FF_STRUCTURED_OUTPUT": "false",
-        }, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "FF_SSE_STREAMING": "true",
+                "FF_STRUCTURED_OUTPUT": "false",
+            },
+            clear=True,
+        ):
             response = client.get("/api/config")
             data = response.json()
             assert data["sse_streaming"] is False
@@ -202,10 +211,14 @@ class TestConfigEndpoint:
 
     def test_config_sse_true_when_both_on(self):
         """SSE reports true only when both SSE and structured_output are on."""
-        with patch.dict(os.environ, {
-            "FF_SSE_STREAMING": "true",
-            "FF_STRUCTURED_OUTPUT": "true",
-        }, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "FF_SSE_STREAMING": "true",
+                "FF_STRUCTURED_OUTPUT": "true",
+            },
+            clear=True,
+        ):
             response = client.get("/api/config")
             data = response.json()
             assert data["sse_streaming"] is True
@@ -213,12 +226,15 @@ class TestConfigEndpoint:
 
     def test_config_does_not_leak_internal_flags(self):
         """Only client-safe flags are exposed, not internal ones."""
-        with patch.dict(os.environ, {
-            "FF_STRUCTURED_OUTPUT": "true",
-            "FF_SSE_STREAMING": "true",
-            "FF_JSON_RESPONSE_FORMAT": "true",
-            "FF_EMBEDDED_QUIZ": "true",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "FF_STRUCTURED_OUTPUT": "true",
+                "FF_SSE_STREAMING": "true",
+                "FF_JSON_RESPONSE_FORMAT": "true",
+                "FF_EMBEDDED_QUIZ": "true",
+            },
+        ):
             response = client.get("/api/config")
             data = response.json()
             assert set(data.keys()) == {"sse_streaming", "structured_output"}
@@ -243,7 +259,9 @@ class TestStreamEndpoint:
             patch("classgen.api.chat.generate_homework_code", return_value="TEST42"),
             patch("classgen.api.chat.save_homework_code"),
         ):
-            mock_llm.return_value = "[BLOCK_START_OPENER]\nTitle: Test\nSummary: S\nDetails: D\n[BLOCK_END]"
+            mock_llm.return_value = (
+                "[BLOCK_START_OPENER]\nTitle: Test\nSummary: S\nDetails: D\n[BLOCK_END]"
+            )
             response = client.post(
                 "/api/chat/stream",
                 json={"message": "SS2 Biology: Test", "thread_id": "t1"},
@@ -260,8 +278,13 @@ class TestStreamEndpoint:
     @patch("classgen.api.chat.get_session_history", return_value=[])
     @patch("classgen.api.chat.call_openrouter", new_callable=AsyncMock)
     def test_stream_emits_sse_events(
-        self, mock_llm, mock_hist, mock_log, mock_pdf,
-        mock_code, mock_save,
+        self,
+        mock_llm,
+        mock_hist,
+        mock_log,
+        mock_pdf,
+        mock_code,
+        mock_save,
     ):
         """When flags are on, stream endpoint returns SSE events."""
         mock_llm.return_value = SAMPLE_LESSON_JSON
@@ -271,10 +294,13 @@ class TestStreamEndpoint:
                 yield ch
 
         with (
-            patch.dict(os.environ, {
-                "FF_SSE_STREAMING": "true",
-                "FF_STRUCTURED_OUTPUT": "true",
-            }),
+            patch.dict(
+                os.environ,
+                {
+                    "FF_SSE_STREAMING": "true",
+                    "FF_STRUCTURED_OUTPUT": "true",
+                },
+            ),
             patch(
                 "classgen.api.chat.stream_openrouter",
                 side_effect=mock_stream,

@@ -30,9 +30,7 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 
-def _whatsapp_summary(
-    lesson_text: str, homework_code: str | None, base_url: str
-) -> str:
+def _whatsapp_summary(lesson_text: str, homework_code: str | None, base_url: str) -> str:
     """Create a WhatsApp-friendly summary (under 1500 chars) from a full lesson pack."""
     titles = re.findall(
         r"\[BLOCK_START_(\w+)\].*?Title:\s*\*{0,2}(.*?)\*{0,2}\s*(?:\n|$)",
@@ -115,16 +113,12 @@ async def twilio_webhook(request: Request):
                 'lesson -- e.g. "SS2 Biology: Photosynthesis"\n\n'
                 'Send "help" for all commands.'
             )
-            return Response(
-                content=str(twiml_response), media_type="application/xml"
-            )
+            return Response(content=str(twiml_response), media_type="application/xml")
         if upper == "HELP":
             pass  # Fall through to command router
         else:
             twiml_response.message(whatsapp_welcome(base_url))
-            return Response(
-                content=str(twiml_response), media_type="application/xml"
-            )
+            return Response(content=str(twiml_response), media_type="application/xml")
 
     # Try command router first
     cmd_result = handle_command(body, phone, base_url)
@@ -141,9 +135,7 @@ async def twilio_webhook(request: Request):
                 "1000 characters. Topic: " + topic
             )
             recap = await call_openrouter(CLASSGEN_SYSTEM_PROMPT, study_prompt)
-            twiml_response.message(
-                recap or "Could not generate a recap right now. Try again."
-            )
+            twiml_response.message(recap or "Could not generate a recap right now. Try again.")
             return Response(content=str(twiml_response), media_type="application/xml")
 
         twiml_response.message(cmd_result.reply)
@@ -160,9 +152,8 @@ async def twilio_webhook(request: Request):
     ai_response_text, pdf_url, homework_code, lesson_pack = await _generate_lesson(
         body, thread_id, teacher_phone=phone
     )
-    has_content = (
-        _has_lesson_blocks(ai_response_text)
-        or (lesson_pack is not None and len(lesson_pack.blocks) > 0)
+    has_content = _has_lesson_blocks(ai_response_text) or (
+        lesson_pack is not None and len(lesson_pack.blocks) > 0
     )
     if has_content:
         log_usage(phone, "lesson")
@@ -180,8 +171,7 @@ async def twilio_webhook(request: Request):
         reply_text = ai_response_text
         if homework_code:
             reply_text += (
-                f"\n\nHomework Code: {homework_code}"
-                f"\nStudents visit: {base_url}/h/{homework_code}"
+                f"\n\nHomework Code: {homework_code}\nStudents visit: {base_url}/h/{homework_code}"
             )
 
     msg = twiml_response.message(reply_text)

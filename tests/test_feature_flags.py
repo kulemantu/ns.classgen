@@ -74,10 +74,14 @@ class TestEffectiveFlags:
             assert self.flags.effective_sse_streaming is False  # effective is off
 
     def test_sse_with_structured_output(self):
-        with patch.dict(os.environ, {
-            "FF_SSE_STREAMING": "true",
-            "FF_STRUCTURED_OUTPUT": "true",
-        }, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "FF_SSE_STREAMING": "true",
+                "FF_STRUCTURED_OUTPUT": "true",
+            },
+            clear=True,
+        ):
             assert self.flags.effective_sse_streaming is True
 
     def test_structured_output_alone_no_sse(self):
@@ -93,10 +97,14 @@ class TestEffectiveFlags:
             assert self.flags.effective_embedded_quiz is False
 
     def test_embedded_quiz_with_structured_output(self):
-        with patch.dict(os.environ, {
-            "FF_EMBEDDED_QUIZ": "true",
-            "FF_STRUCTURED_OUTPUT": "true",
-        }, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "FF_EMBEDDED_QUIZ": "true",
+                "FF_STRUCTURED_OUTPUT": "true",
+            },
+            clear=True,
+        ):
             assert self.flags.effective_embedded_quiz is True
 
     # --- effective_json_response_format ---
@@ -107,10 +115,14 @@ class TestEffectiveFlags:
             assert self.flags.effective_json_response_format is False
 
     def test_json_format_with_structured_output(self):
-        with patch.dict(os.environ, {
-            "FF_JSON_RESPONSE_FORMAT": "true",
-            "FF_STRUCTURED_OUTPUT": "true",
-        }, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "FF_JSON_RESPONSE_FORMAT": "true",
+                "FF_STRUCTURED_OUTPUT": "true",
+            },
+            clear=True,
+        ):
             assert self.flags.effective_json_response_format is True
 
     # --- All defaults off ---
@@ -124,12 +136,16 @@ class TestEffectiveFlags:
     # --- All on ---
 
     def test_all_effective_flags_on_when_all_enabled(self):
-        with patch.dict(os.environ, {
-            "FF_STRUCTURED_OUTPUT": "true",
-            "FF_SSE_STREAMING": "true",
-            "FF_JSON_RESPONSE_FORMAT": "true",
-            "FF_EMBEDDED_QUIZ": "true",
-        }, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "FF_STRUCTURED_OUTPUT": "true",
+                "FF_SSE_STREAMING": "true",
+                "FF_JSON_RESPONSE_FORMAT": "true",
+                "FF_EMBEDDED_QUIZ": "true",
+            },
+            clear=True,
+        ):
             assert self.flags.effective_sse_streaming is True
             assert self.flags.effective_embedded_quiz is True
             assert self.flags.effective_json_response_format is True

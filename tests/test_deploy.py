@@ -12,8 +12,8 @@ import deploy
 def test_load_env_parses_key_value(tmp_path):
     env_file = tmp_path / ".env.prod"
     env_file.write_text(
-        '# Comment\n'
-        'DOMAIN=classgen.ng\n'
+        "# Comment\n"
+        "DOMAIN=classgen.ng\n"
         'OPENROUTER_API_KEY="sk-test-123"\n'
         "EMPTY_VAR=\n"
         "QUOTED='single-quoted'\n"
@@ -111,6 +111,7 @@ def test_find_free_port():
     assert 49152 <= port < 49200
     # Port should actually be free
     import socket
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         assert s.connect_ex(("127.0.0.1", port)) != 0
 
@@ -141,6 +142,7 @@ def test_wait_for_health_http_success():
 def test_wait_for_health_http_failure():
     """Test HTTP health polling when server never comes up."""
     import urllib.error
+
     with patch("urllib.request.urlopen") as mock_urlopen:
         mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
         assert deploy.wait_for_health_http(9999, retries=2, delay=0) is False

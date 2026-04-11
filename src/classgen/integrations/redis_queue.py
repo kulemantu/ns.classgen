@@ -20,6 +20,7 @@ _redis = None
 if _redis_url:
     try:
         import redis
+
         _redis = redis.from_url(_redis_url)
         _redis.ping()
         print(f"Redis connected: {_redis_url}")
@@ -75,8 +76,9 @@ def get_batch_job(job_id: str) -> dict | None:
     return _mem_results.get(job_id)
 
 
-def update_batch_job(job_id: str, completed: int, status: str = "running",
-                     result: dict | None = None):
+def update_batch_job(
+    job_id: str, completed: int, status: str = "running", result: dict | None = None
+):
     """Update batch job progress."""
     job = get_batch_job(job_id)
     if not job:

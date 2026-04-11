@@ -43,6 +43,7 @@ OPTIONAL_VARS = [
 
 # --- Logging ---
 
+
 class Colors:
     GREEN = "\033[0;32m"
     YELLOW = "\033[1;33m"
@@ -63,6 +64,7 @@ def err(msg: str):
 
 
 # --- Helpers ---
+
 
 def compose(*args: str, check: bool = True, capture: bool = False) -> subprocess.CompletedProcess:
     """Run a docker compose command against the production compose file."""
@@ -119,8 +121,11 @@ def wait_for_health(retries: int = 6, delay: float = 5.0) -> bool:
     """Poll the app health endpoint via docker exec."""
     for i in range(retries):
         result = compose(
-            "exec", "-T", "app",
-            "python", "-c",
+            "exec",
+            "-T",
+            "app",
+            "python",
+            "-c",
             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
             check=False,
             capture=True,
@@ -133,6 +138,7 @@ def wait_for_health(retries: int = 6, delay: float = 5.0) -> bool:
 
 
 # --- Commands ---
+
 
 def cmd_check():
     """Validate .env.prod without deploying."""
@@ -218,8 +224,11 @@ def cmd_status():
     print()
 
     result = compose(
-        "exec", "-T", "app",
-        "python", "-c",
+        "exec",
+        "-T",
+        "app",
+        "python",
+        "-c",
         "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').read().decode())",
         check=False,
         capture=True,
@@ -240,6 +249,7 @@ def cmd_stop():
 def find_free_port(start: int = 9100, end: int = 9200) -> int:
     """Find an available port in the given range."""
     import socket
+
     for port in range(start, end):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             if s.connect_ex(("127.0.0.1", port)) != 0:
@@ -247,13 +257,11 @@ def find_free_port(start: int = 9100, end: int = 9200) -> int:
     raise RuntimeError(f"No free port found in {start}-{end}")
 
 
-def compose_test(*args: str, check: bool = True, capture: bool = False,
-                 port: int = 9100) -> subprocess.CompletedProcess:
+def compose_test(
+    *args: str, check: bool = True, capture: bool = False, port: int = 9100
+) -> subprocess.CompletedProcess:
     """Run docker compose against the test compose file."""
-    cmd = ["docker", "compose",
-           "-f", str(COMPOSE_TEST_FILE),
-           "-p", "classgen-test",
-           *args]
+    cmd = ["docker", "compose", "-f", str(COMPOSE_TEST_FILE), "-p", "classgen-test", *args]
     env = {**os.environ, "APP_PORT": str(port)}
     return subprocess.run(cmd, check=check, capture_output=capture, text=True, env=env)
 
@@ -262,6 +270,7 @@ def wait_for_health_http(port: int, retries: int = 20, delay: float = 3.0) -> bo
     """Poll the health endpoint directly via HTTP (no docker exec)."""
     import urllib.error
     import urllib.request
+
     for i in range(retries):
         try:
             resp = urllib.request.urlopen(f"http://localhost:{port}/health", timeout=3)

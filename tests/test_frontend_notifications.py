@@ -57,7 +57,7 @@ class TestToastElement:
 
     def test_toast_dark_mode_variant(self):
         response = client.get("/")
-        assert "[data-theme=\"dark\"] .toast" in response.text
+        assert '[data-theme="dark"] .toast' in response.text
 
     def test_toast_high_z_index(self):
         response = client.get("/")

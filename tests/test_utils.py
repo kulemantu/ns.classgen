@@ -10,7 +10,9 @@ from classgen.services.llm import call_openrouter
 
 @pytest.mark.asyncio
 async def test_call_openrouter_success():
-    with patch("classgen.services.llm.openrouter_client.chat.completions.create", new_callable=AsyncMock) as mock_create:
+    with patch(
+        "classgen.services.llm.openrouter_client.chat.completions.create", new_callable=AsyncMock
+    ) as mock_create:
         mock_message = MagicMock()
         mock_message.content = "Test Plan A and Plan B"
         mock_choice = MagicMock()
@@ -26,7 +28,9 @@ async def test_call_openrouter_success():
 
 @pytest.mark.asyncio
 async def test_call_openrouter_failure():
-    with patch("classgen.services.llm.openrouter_client.chat.completions.create", new_callable=AsyncMock) as mock_create:
+    with patch(
+        "classgen.services.llm.openrouter_client.chat.completions.create", new_callable=AsyncMock
+    ) as mock_create:
         mock_create.side_effect = Exception("API Down")
         response = await call_openrouter("sys prompt", "user prompt")
         assert response is None

@@ -14,7 +14,9 @@ def _make_pack() -> LessonPack:
 class TestWebAdapter:
     def test_returns_dict(self):
         adapter = WebAdapter()
-        result = adapter.render_lesson(_make_pack(), homework_code="TEST42", pdf_url="/static/test.pdf")
+        result = adapter.render_lesson(
+            _make_pack(), homework_code="TEST42", pdf_url="/static/test.pdf"
+        )
         assert isinstance(result, dict)
         assert result["homework_code"] == "TEST42"
         assert result["pdf_url"] == "/static/test.pdf"
@@ -43,7 +45,9 @@ class TestWebAdapter:
 class TestWhatsAppAdapter:
     def test_output_under_1500_chars(self):
         adapter = WhatsAppAdapter()
-        result = adapter.render_lesson(_make_pack(), homework_code="BIO42", base_url="https://classgen.ng")
+        result = adapter.render_lesson(
+            _make_pack(), homework_code="BIO42", base_url="https://classgen.ng"
+        )
         assert len(result) < 1500
 
     def test_correct_labels(self):
@@ -57,7 +61,9 @@ class TestWhatsAppAdapter:
 
     def test_homework_code_included(self):
         adapter = WhatsAppAdapter()
-        result = adapter.render_lesson(_make_pack(), homework_code="BIO42", base_url="https://classgen.ng")
+        result = adapter.render_lesson(
+            _make_pack(), homework_code="BIO42", base_url="https://classgen.ng"
+        )
         assert "BIO42" in result
         assert "https://classgen.ng/h/BIO42" in result
 
@@ -132,5 +138,6 @@ class TestGetAdapter:
 
     def test_unknown_raises(self):
         import pytest
+
         with pytest.raises(ValueError, match="Unknown channel"):
             get_adapter("sms")

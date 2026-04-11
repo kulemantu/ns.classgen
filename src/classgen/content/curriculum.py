@@ -248,8 +248,9 @@ def get_topics(exam_board: str, subject: str, class_level: str) -> list[str]:
     return subj.get(class_level.upper(), [])
 
 
-def suggest_topics(exam_board: str, subject: str, class_level: str,
-                   covered: list[str] | None = None) -> tuple[list[str], list[str]]:
+def suggest_topics(
+    exam_board: str, subject: str, class_level: str, covered: list[str] | None = None
+) -> tuple[list[str], list[str]]:
     """Return (uncovered_topics, covered_topics) for a class.
 
     If covered is provided, topics already taught are separated out.

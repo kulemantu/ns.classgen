@@ -19,8 +19,9 @@ _mem_content_cache: dict[str, str] = {}  # cache_key -> lesson content
 # --- Lesson History ---
 
 
-def log_lesson_generated(teacher_phone: str, subject: str, topic: str,
-                         class_level: str, exam_board: str = "WAEC"):
+def log_lesson_generated(
+    teacher_phone: str, subject: str, topic: str, class_level: str, exam_board: str = "WAEC"
+):
     """Record that a teacher generated a lesson for a topic."""
     record = {
         "teacher_phone": teacher_phone,
@@ -48,7 +49,8 @@ def get_covered_topics(teacher_phone: str, class_str: str) -> list[str]:
 
     if not supabase:
         return [
-            h["topic"] for h in _mem_lesson_history
+            h["topic"]
+            for h in _mem_lesson_history
             if h.get("teacher_phone") == teacher_phone
             and h.get("class_level") == class_level
             and h.get("subject", "").lower() == subject.lower()
@@ -75,8 +77,9 @@ def _cache_key(subject: str, topic: str, class_level: str, exam_board: str) -> s
     return f"{exam_board}:{subject}:{class_level}:{topic}".lower()
 
 
-def get_cached_lesson(subject: str, topic: str, class_level: str,
-                      exam_board: str = "WAEC") -> str | None:
+def get_cached_lesson(
+    subject: str, topic: str, class_level: str, exam_board: str = "WAEC"
+) -> str | None:
     """Check if a lesson for this exact tuple has been generated before."""
     key = _cache_key(subject, topic, class_level, exam_board)
     if not supabase:
@@ -86,11 +89,7 @@ def get_cached_lesson(subject: str, topic: str, class_level: str,
         return entry
     try:
         response = (
-            supabase.table("lesson_cache")
-            .select("content")
-            .eq("cache_key", key)
-            .limit(1)
-            .execute()
+            supabase.table("lesson_cache").select("content").eq("cache_key", key).limit(1).execute()
         )
         return response.data[0]["content"] if response.data else None
     except Exception as e:
@@ -98,8 +97,9 @@ def get_cached_lesson(subject: str, topic: str, class_level: str,
         return None
 
 
-def get_cached_lesson_json(subject: str, topic: str, class_level: str,
-                           exam_board: str = "WAEC") -> dict | None:
+def get_cached_lesson_json(
+    subject: str, topic: str, class_level: str, exam_board: str = "WAEC"
+) -> dict | None:
     """Get the structured JSON for a cached lesson, if available."""
     key = _cache_key(subject, topic, class_level, exam_board)
     if not supabase:
@@ -123,9 +123,14 @@ def get_cached_lesson_json(subject: str, topic: str, class_level: str,
         return None
 
 
-def cache_lesson(subject: str, topic: str, class_level: str,
-                 content: str, exam_board: str = "WAEC",
-                 lesson_json: dict | None = None):
+def cache_lesson(
+    subject: str,
+    topic: str,
+    class_level: str,
+    content: str,
+    exam_board: str = "WAEC",
+    lesson_json: dict | None = None,
+):
     """Cache a generated lesson for reuse."""
     key = _cache_key(subject, topic, class_level, exam_board)
     if not supabase:
@@ -142,8 +147,6 @@ def cache_lesson(subject: str, topic: str, class_level: str,
         }
         if lesson_json is not None:
             record["lesson_json"] = lesson_json
-        supabase.table("lesson_cache").upsert(
-            record, on_conflict="cache_key"
-        ).execute()
+        supabase.table("lesson_cache").upsert(record, on_conflict="cache_key").execute()
     except Exception as e:
         print(f"Error caching lesson: {e}")

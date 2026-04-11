@@ -11,9 +11,9 @@ from dataclasses import dataclass
 # Prices keyed by ISO currency code. Add new currencies here.
 
 TIER_PRICES = {
-    "free":    {"NGN": 0,    "KES": 0,    "USD": 0},
-    "premium": {"NGN": 2000, "KES": 500,  "USD": 3},
-    "school":  {"NGN": 5000, "KES": 1200, "USD": 7},
+    "free": {"NGN": 0, "KES": 0, "USD": 0},
+    "premium": {"NGN": 2000, "KES": 500, "USD": 3},
+    "school": {"NGN": 5000, "KES": 1200, "USD": 7},
 }
 
 TIERS = {
