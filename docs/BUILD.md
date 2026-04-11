@@ -1,14 +1,16 @@
 # ClassGen Build Log
 
-## Current State (V1.3 -- Stabilisation complete)
+## Current State (V4.1 — April 2026)
 
-- FastAPI backend with Twilio WhatsApp webhook + web chat UI
-- 5-block lesson pack: OPENER, EXPLAIN, ACTIVITY, HOMEWORK, TEACHER_NOTES
-- PDF generation via fpdf2 (with subtitle + date, expanded Unicode sanitization)
-- Supabase session logging (with in-memory fallback for local dev)
-- OpenRouter LLM (Grok 4.1 Fast)
-- Homework code system: quiz generation, student submission, teacher results dashboard
-- Twilio webhook signature validation (when TWILIO_AUTH_TOKEN set)
+- `src/classgen/` package with 9 sub-packages, layered architecture
+- Structured JSON lesson output (Pydantic LessonPack) with legacy block-marker fallback
+- Channel adapters: Web (JSON), WhatsApp (plain text), PDF
+- SSE streaming endpoint (`POST /api/chat/stream`)
+- Feature flags: `FF_STRUCTURED_OUTPUT`, `FF_SSE_STREAMING`, `FF_JSON_RESPONSE_FORMAT`, `FF_EMBEDDED_QUIZ`
+- 3-slide onboarding intro (web) + WhatsApp welcome with terms acceptance
+- Terms & Privacy page at `/terms`
+- Conversation persistence (localStorage), toast + native notifications
+- 350 tests, ruff clean, Python 3.14
 
 ## What's Done
 
@@ -214,10 +216,38 @@ See [DATABASE.md](DATABASE.md) for schema details, migration workflow, and stora
 
 **Staging test results:** 19/19 HTTP checks pass on Docker Compose, covering health, teacher registration, lesson generation, homework+quiz flow, PDF download, CSV export, WhatsApp webhook.
 
+### V4.1 — Structured Output + Channel Adapters + Onboarding (2026-04-07 to 2026-04-11)
+
+**Core (859ed01):**
+- Pydantic `LessonPack` model with discriminated union blocks (`core/models.py`)
+- Dual parser: JSON-first with block-regex fallback (`core/parsers.py`)
+- Feature flags with effective-state resolution (`core/feature_flags.py`)
+- Channel adapters: WebAdapter, WhatsAppAdapter, PDFAdapter (`channels/`)
+- `call_openrouter_json()` and `stream_openrouter()` in `services/llm.py`
+- `CLASSGEN_JSON_SYSTEM_PROMPT` in `content/prompts.py`
+- SSE streaming: `POST /api/chat/stream` with `JSONBlockAccumulator`
+- Migration 003: `lesson_json jsonb` column on `homework_codes` + `lesson_cache`
+
+**Frontend (d0341e8 through fb5e2a2):**
+- Dual-path rendering: `data.lesson_pack` (JSON) or `blockRegex` (legacy)
+- Humanized card summaries, rich detail overlays (equations, key terms)
+- Conversation persistence in localStorage (last 10 exchanges)
+- Toast notifications (dark slate), native browser notifications
+- DM Serif Display headings in detail dialog overlays
+- Connected SVG double-tick (WhatsApp style)
+
+**Onboarding (069e2f8):**
+- 3-slide full-screen intro overlay for first-time web visitors
+- WhatsApp welcome message with terms link + "Reply YES"
+- Shared content config (`content/onboarding.py`)
+- `/terms` static page
+- Migration 004: `onboarded_at` on teachers table
+- `tests/conftest.py` autouse fixture to bypass onboarding in existing tests
+
+**Security audit:** 5 fixes — SSE event sanitization, stream retry, homework data validation, buffer bounds, config flag leak.
+
+**Test coverage:** 350 tests (from 163 at V4.0).
+
 ## What's Next
 
-See [ROADMAP.md](ROADMAP.md) for V4.1-V4.4 phases.
-
-**Immediate:** Merge v4.0-staging → master → deploy to production.
-
-**Next phase (V4.1):** Structured JSON output from LLM + channel adapters + SSE streaming. See [DESIGN-v4-structured-output.md](DESIGN-v4-structured-output.md).
+See [ROADMAP.md](ROADMAP.md) for V4.2-V4.4 phases. Next up: **V4.2 Adventure Homework**.

@@ -135,6 +135,8 @@ docker restart classgen-rest
 |---|---|---|
 | 001 | `001_baseline.sql` | Marker for initial `init.sql` schema |
 | 002 | `002_add_updated_at.sql` | Added `updated_at` columns + `set_updated_at()` trigger to 6 mutable tables |
+| 003 | `003_add_lesson_json.sql` | Added `lesson_json jsonb` to `homework_codes` and `lesson_cache` (V4.1 structured output) |
+| 004 | `004_add_onboarded_at.sql` | Added `onboarded_at timestamptz` to `teachers` (onboarding consent tracking) |
 
 ## Multi-Worker Considerations
 

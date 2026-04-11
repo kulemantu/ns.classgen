@@ -440,7 +440,7 @@ See [DESIGN-v4-structured-output.md](DESIGN-v4-structured-output.md) for the ful
 
 ---
 
-### V4.0 — Project Restructure
+### V4.0 — Project Restructure (DONE)
 
 **Goal:** Reorganize from flat-file layout to proper `src/classgen/` package with layered architecture. Foundation for all V4 features.
 
@@ -539,9 +539,11 @@ scratch/           # Experiments — NOT importable, NOT in package.
 
 ---
 
-### V4.1 — Structured Output + Channel Adapters
+### V4.1 — Structured Output + Channel Adapters (DONE)
 
 **Goal:** LLM returns structured JSON instead of text blocks. Each channel renders the same data differently. SSE streaming eliminates the dead wait on web.
+
+**Status:** Implemented and deployed (April 2026). All features flag-gated behind `FF_STRUCTURED_OUTPUT`, `FF_SSE_STREAMING`, `FF_JSON_RESPONSE_FORMAT`, `FF_EMBEDDED_QUIZ`. Flags default off; production flags off. Additionally: 3-slide web onboarding intro, WhatsApp welcome with terms acceptance, `/terms` page, conversation persistence, toast/native notifications, DM Serif Display headings in overlays. 350 tests.
 
 #### User Stories
 
@@ -747,15 +749,15 @@ Every user story traces to: schema changes → new/modified modules → endpoint
 ## Implementation Order
 
 ```
-V4.0  Restructure to src/classgen/         ← foundation, no behavior changes
+V4.0  Restructure to src/classgen/         ✅ DONE (April 2026)
   ↓
-V4.1  Structured output + adapters + SSE   ← biggest UX impact, enables everything
+V4.1  Structured output + adapters + SSE   ✅ DONE (April 2026, flag-gated)
   ↓
-V4.2  Adventure homework                   ← content quality leap
+V4.2  Adventure homework                   ← NEXT: content quality leap
   ↓
 V4.3  Student identity + community         ← network effects begin
   ↓
 V4.4  Trust network + analytics            ← platform intelligence
 ```
 
-Each phase is independently deployable. V4.0 is a pure refactor (all tests pass, same behavior). V4.1 is backward-compatible (WhatsApp adapter produces identical output to current format). V4.2 onward adds new capabilities.
+Each phase is independently deployable. V4.2 onward adds new capabilities.
