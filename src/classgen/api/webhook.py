@@ -13,10 +13,12 @@ from twilio.twiml.messaging_response import MessagingResponse
 from classgen.api.chat import _generate_lesson, _has_lesson_blocks
 from classgen.channels.whatsapp import WhatsAppAdapter
 from classgen.commands.router import handle_command
+from classgen.content.onboarding import whatsapp_welcome
 from classgen.content.prompts import CLASSGEN_SYSTEM_PROMPT
 from classgen.core.feature_flags import flags
-from classgen.data import get_active_thread
+from classgen.data import get_active_thread, get_teacher_by_phone, save_teacher
 from classgen.data.subscriptions import log_usage
+from classgen.data.teachers import is_onboarded, mark_onboarded
 from classgen.services.billing_service import check_usage
 from classgen.services.llm import call_openrouter
 
@@ -97,12 +99,32 @@ async def twilio_webhook(request: Request):
         return Response(content=str(twiml_response), media_type="application/xml")
 
     if not body.strip():
-        twiml_response.message(
-            "Welcome to ClassGen! Send a topic to get started "
-            '-- e.g. "SS2 Biology: Photosynthesis"\n\n'
-            'Send "help" for all commands.'
-        )
+        twiml_response.message(whatsapp_welcome(base_url))
         return Response(content=str(twiml_response), media_type="application/xml")
+
+    # Onboarding: check if user has accepted terms
+    if not is_onboarded(phone):
+        upper = body.strip().upper()
+        if upper == "YES":
+            # Create minimal teacher record if needed, then mark onboarded
+            if not get_teacher_by_phone(phone):
+                save_teacher(phone, phone, phone)
+            mark_onboarded(phone)
+            twiml_response.message(
+                "You're all set! Send a topic to generate your first "
+                'lesson -- e.g. "SS2 Biology: Photosynthesis"\n\n'
+                'Send "help" for all commands.'
+            )
+            return Response(
+                content=str(twiml_response), media_type="application/xml"
+            )
+        if upper == "HELP":
+            pass  # Fall through to command router
+        else:
+            twiml_response.message(whatsapp_welcome(base_url))
+            return Response(
+                content=str(twiml_response), media_type="application/xml"
+            )
 
     # Try command router first
     cmd_result = handle_command(body, phone, base_url)

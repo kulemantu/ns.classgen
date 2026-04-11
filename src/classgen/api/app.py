@@ -88,6 +88,17 @@ async def root():
     )
 
 
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_page():
+    terms_path = _APP_ROOT / "terms.html"
+    if terms_path.exists():
+        return FileResponse(str(terms_path))
+    return HTMLResponse(
+        "<h1>Terms & Privacy</h1><p>Page not available.</p>",
+        status_code=500,
+    )
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}

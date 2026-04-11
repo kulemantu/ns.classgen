@@ -197,3 +197,45 @@ def get_teacher_lesson_stats(teacher_phone: str) -> dict:
     except Exception as e:
         print(f"Error getting teacher stats: {e}")
         return {"total": 0, "this_week": 0, "this_month": 0}
+
+
+# --- Onboarding ---
+
+
+def is_onboarded(phone: str) -> bool:
+    """Check if a user has accepted the onboarding terms."""
+    if not supabase:
+        teacher = _mem_teachers.get(phone)
+        return bool(teacher and teacher.get("onboarded_at"))
+    try:
+        resp = (
+            supabase.table("teachers")
+            .select("onboarded_at")
+            .eq("phone", phone)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            return resp.data[0].get("onboarded_at") is not None
+        return False
+    except Exception as e:
+        print(f"Error checking onboarding: {e}")
+        return False
+
+
+def mark_onboarded(phone: str) -> bool:
+    """Record that a user accepted the onboarding terms."""
+    now = datetime.now(timezone.utc).isoformat()
+    if not supabase:
+        teacher = _mem_teachers.get(phone)
+        if teacher:
+            teacher["onboarded_at"] = now
+        return True
+    try:
+        supabase.table("teachers").update(
+            {"onboarded_at": now}
+        ).eq("phone", phone).execute()
+        return True
+    except Exception as e:
+        print(f"Error marking onboarded: {e}")
+        return False
