@@ -1070,7 +1070,7 @@
         function openEncyclopedia(title, detailsHtml) {
             triggerHaptic('light');
             document.getElementById('encyclopedia-body').innerHTML = `
-                <div style="color:var(--modal-accent);margin-bottom:1rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em">${escapeHtml(title)}</div>
+                <div style="font-family:'DM Serif Display',serif;color:var(--modal-accent);margin-bottom:1rem;font-size:1.1rem;font-weight:400;letter-spacing:-0.01em">${escapeHtml(title)}</div>
                 <div style="line-height:1.7;font-size:0.95rem">${detailsHtml}</div>
             `;
             document.getElementById('encyclopedia-modal').classList.add('active');
