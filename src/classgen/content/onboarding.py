@@ -19,7 +19,12 @@ ONBOARDING = {
                 " opener hook, core concept, classroom activity,"
                 " exercise-book homework, and teacher notes."
             ),
-            "example": "SS2 Biology: Photosynthesis",
+            "examples": [
+                "SS2, Nigeria, Biology, Photosynthesis, 40 mins",
+                "Form 3, Wave Motion, Physics, Kenya, 1 hour",
+                "History, Rwanda, Senior 4, Colonial Rule in East Africa, 45 mins",
+                "Class 10, India, Quadratic Equations, Maths, 1h 20 mins",
+            ],
         },
         {
             "heading": "Everything your students need",

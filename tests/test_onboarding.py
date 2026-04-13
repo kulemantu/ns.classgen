@@ -24,8 +24,10 @@ class TestOnboardingConfig:
     def test_slides_count(self):
         assert len(ONBOARDING["slides"]) == 2
 
-    def test_first_slide_has_example(self):
-        assert "example" in ONBOARDING["slides"][0]
+    def test_first_slide_has_examples(self):
+        examples = ONBOARDING["slides"][0]["examples"]
+        assert isinstance(examples, list)
+        assert len(examples) == 4
 
     def test_second_slide_has_features(self):
         features = ONBOARDING["slides"][1]["features"]

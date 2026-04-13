@@ -652,11 +652,25 @@
             opacity: 0.6; max-width: 360px; line-height: 1.7;
             margin-bottom: 1.5rem;
         }
+        .intro-marquee {
+            width: 100%; overflow: hidden; margin-bottom: 1.5rem;
+            padding: 8px 0;
+            -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+            mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+        }
+        .intro-marquee-track {
+            display: flex; gap: 12px; width: max-content;
+            animation: marquee-scroll 20s linear infinite;
+        }
+        @keyframes marquee-scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
         .intro-example {
             display: inline-block; background: var(--bubble-user-bg);
             color: var(--bubble-user-text); padding: 8px 16px;
             border-radius: 12px; font-size: 0.82rem; font-weight: 500;
-            margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08); white-space: nowrap; flex-shrink: 0;
         }
         /* CSS-rendered mini lesson blocks */
         .intro-blocks {
@@ -823,7 +837,18 @@
             <div class="intro-slide" data-slide="1">
                 <div class="intro-heading">Type a topic. Get a lesson pack.</div>
                 <div class="intro-body">Send any topic and get a structured lesson: opener hook, core concept, classroom activity, exercise-book homework, and teacher notes.</div>
-                <div class="intro-example">SS2 Biology: Photosynthesis</div>
+                <div class="intro-marquee">
+                    <div class="intro-marquee-track">
+                        <div class="intro-example">SS2, Nigeria, Biology, Photosynthesis, 40 mins</div>
+                        <div class="intro-example">Form 3, Wave Motion, Physics, Kenya, 1 hour</div>
+                        <div class="intro-example">History, Rwanda, Senior 4, Colonial Rule in East Africa, 45 mins</div>
+                        <div class="intro-example">Class 10, India, Quadratic Equations, Maths, 1h 20 mins</div>
+                        <div class="intro-example">SS2, Nigeria, Biology, Photosynthesis, 40 mins</div>
+                        <div class="intro-example">Form 3, Wave Motion, Physics, Kenya, 1 hour</div>
+                        <div class="intro-example">History, Rwanda, Senior 4, Colonial Rule in East Africa, 45 mins</div>
+                        <div class="intro-example">Class 10, India, Quadratic Equations, Maths, 1h 20 mins</div>
+                    </div>
+                </div>
                 <div class="intro-body">Designed for classrooms of 30-60 students with exercise books, pens, and a chalkboard. No internet needed in class.</div>
             </div>
             <!-- Slide 3: Features + Accept -->
@@ -1534,7 +1559,12 @@
                 {
                     heading: 'Type a topic. Get a lesson pack.',
                     body: 'Send any topic and get a structured lesson: opener hook, core concept, classroom activity, exercise-book homework, and teacher notes.',
-                    example: 'SS2 Biology: Photosynthesis',
+                    examples: [
+                        'SS2, Nigeria, Biology, Photosynthesis, 40 mins',
+                        'Form 3, Wave Motion, Physics, Kenya, 1 hour',
+                        'History, Rwanda, Senior 4, Colonial Rule in East Africa, 45 mins',
+                        'Class 10, India, Quadratic Equations, Maths, 1h 20 mins',
+                    ],
                 },
                 {
                     heading: 'Everything your students need',
