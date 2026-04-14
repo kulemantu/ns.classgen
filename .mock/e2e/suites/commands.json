@@ -1,0 +1,14 @@
+{
+  "name": "commands_parity",
+  "description": "Command handling parity between web and WhatsApp",
+  "tests": [
+    {
+      "input": "help",
+      "parity_checks": ["response_ok", "has_content"]
+    },
+    {
+      "input": "hello",
+      "parity_checks": ["response_ok", "has_content"]
+    }
+  ]
+}

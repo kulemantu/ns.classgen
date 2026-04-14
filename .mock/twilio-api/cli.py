@@ -33,6 +33,8 @@ OPTIONS
   --json                  JSON output: {"ok": bool, "data": ...}
   --verbose               Show full HTTP request/response
   --delay SECONDS         Delay between scenario steps [default: 1.0]
+  --transcript            Save JSON + HTML transcript of the run
+  --transcript-dir DIR    Transcript output dir [default: .local/transcripts/]
 
 EXAMPLES
   python .mock/twilio-api/cli.py send "hello"
@@ -93,6 +95,8 @@ def parse_args(argv: list[str]) -> tuple[str, list[str], dict]:
         "json": False,
         "verbose": False,
         "delay": 1.0,
+        "transcript": False,
+        "transcript_dir": ".local/transcripts",
     }
 
     positional: list[str] = []
@@ -128,6 +132,13 @@ def parse_args(argv: list[str]) -> tuple[str, list[str], dict]:
         elif arg == "--verbose":
             opts["verbose"] = True
             i += 1
+        elif arg == "--transcript":
+            opts["transcript"] = True
+            i += 1
+        elif arg == "--transcript-dir" and i + 1 < len(argv):
+            opts["transcript_dir"] = argv[i + 1]
+            opts["transcript"] = True
+            i += 2
         elif arg in ("--help", "-h"):
             print(__doc__)
             sys.exit(0)
@@ -367,6 +378,8 @@ def cmd_scenario(positional: list[str], opts: dict) -> None:
         token=opts["token"],
         no_signature=opts["no_signature"],
         verbose=opts["verbose"],
+        transcript=opts["transcript"],
+        transcript_dir=opts["transcript_dir"],
         delay=opts["delay"],
         json_output=opts["json"],
     )

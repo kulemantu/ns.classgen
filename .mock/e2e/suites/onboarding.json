@@ -1,0 +1,11 @@
+{
+  "name": "onboarding_parity",
+  "description": "Onboarding flow parity — both channels gate new users",
+  "tests": [
+    {
+      "input": "hello",
+      "description": "New user first message",
+      "parity_checks": ["response_ok", "has_content"]
+    }
+  ]
+}

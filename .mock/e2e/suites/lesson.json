@@ -1,0 +1,11 @@
+{
+  "name": "lesson_parity",
+  "description": "Lesson generation parity — both channels produce equivalent content",
+  "tests": [
+    {
+      "input": "SS2 Biology: Photosynthesis, 40 mins",
+      "parity_checks": ["response_ok", "has_content", "homework_code", "pdf_available", "block_count"],
+      "note": "Requires OPENROUTER_API_KEY — calls LLM"
+    }
+  ]
+}

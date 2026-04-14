@@ -1,0 +1,42 @@
+{
+  "name": "navigation",
+  "description": "Generate a lesson then browse all sections (requires OPENROUTER_API_KEY)",
+  "steps": [
+    {
+      "description": "Send topic → lesson summary with sections hint",
+      "payload": "text_message",
+      "overrides": {"Body": "SS2 Biology: Photosynthesis, 40 mins"},
+      "expect_contains": ["sections"]
+    },
+    {
+      "description": "List sections → numbered block list",
+      "payload": "text_message",
+      "overrides": {"Body": "sections"},
+      "expect_contains": ["Hook", "Concept", "Activity"]
+    },
+    {
+      "description": "View opener → block detail",
+      "payload": "text_message",
+      "overrides": {"Body": "1"},
+      "expect_contains": ["Hook"]
+    },
+    {
+      "description": "Next block → explain detail",
+      "payload": "text_message",
+      "overrides": {"Body": "next"},
+      "expect_contains": ["Concept"]
+    },
+    {
+      "description": "View homework by name → homework detail",
+      "payload": "text_message",
+      "overrides": {"Body": "homework"},
+      "expect_contains": ["Homework"]
+    },
+    {
+      "description": "Resend PDF link",
+      "payload": "text_message",
+      "overrides": {"Body": "pdf"},
+      "expect_contains": ["pdf"]
+    }
+  ]
+}

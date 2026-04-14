@@ -33,6 +33,7 @@ class SimResult:
     body: str
     messages: list[dict] = field(default_factory=list)
     ok: bool = True
+    duration_ms: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -186,26 +187,32 @@ def send(
 
     req = urllib.request.Request(webhook_url, data=encoded, headers=headers)
 
+    import time as _time
+
+    t0 = _time.monotonic()
     try:
         resp = urllib.request.urlopen(req, timeout=30)
         body = resp.read().decode("utf-8")
         status = resp.status
+        elapsed = int((_time.monotonic() - t0) * 1000)
 
         if verbose:
             print(f"  \033[0;32m← {status}\033[0m")
             print(f"  \033[0;32m  {body[:500]}\033[0m")
 
         messages = parse_twiml(body) if "xml" in resp.headers.get("Content-Type", "") else []
-        return SimResult(status=status, body=body, messages=messages)
+        return SimResult(status=status, body=body, messages=messages, duration_ms=elapsed)
 
     except urllib.error.HTTPError as e:
+        elapsed = int((_time.monotonic() - t0) * 1000)
         body = e.read().decode("utf-8") if e.fp else ""
         if verbose:
             print(f"  \033[0;31m← {e.code} {body[:200]}\033[0m")
-        return SimResult(status=e.code, body=body, ok=False)
+        return SimResult(status=e.code, body=body, ok=False, duration_ms=elapsed)
 
     except urllib.error.URLError as e:
-        return SimResult(status=0, body=str(e.reason), ok=False)
+        elapsed = int((_time.monotonic() - t0) * 1000)
+        return SimResult(status=0, body=str(e.reason), ok=False, duration_ms=elapsed)
 
 
 # ---------------------------------------------------------------------------
@@ -234,13 +241,17 @@ def run_scenario(
     verbose: bool = False,
     delay: float = 1.0,
     json_output: bool = False,
+    transcript: bool = False,
+    transcript_dir: str = ".local/transcripts",
 ) -> dict:
     """Run a named scenario — returns {"ok": bool, "steps": [...]}."""
     import time
+    from datetime import datetime, timezone
 
     scenario = load_scenario(name)
     steps = scenario.get("steps", [])
     results: list[dict] = []
+    transcript_turns: list = []
     all_pass = True
 
     if not json_output:
@@ -262,6 +273,8 @@ def run_scenario(
             body=overrides.get("Body", ""),
         )
 
+        turn_ts = datetime.now(timezone.utc).isoformat()
+
         result = send(
             url,
             payload,
@@ -277,8 +290,11 @@ def run_scenario(
 
         passed = result.ok
         failed_expects: list[str] = []
+        checks: list[dict] = []
         for expect in expects:
-            if expect.lower() not in response_text.lower():
+            found = expect.lower() in response_text.lower()
+            checks.append({"type": "contains", "value": expect, "passed": found})
+            if not found:
                 passed = False
                 failed_expects.append(expect)
 
@@ -295,6 +311,34 @@ def run_scenario(
         if failed_expects:
             step_result["missing"] = failed_expects
         results.append(step_result)
+
+        # Record transcript turn
+        if transcript:
+            from transcript import Turn
+
+            transcript_turns.append(
+                Turn(
+                    step=i + 1,
+                    description=desc,
+                    timestamp=turn_ts,
+                    duration_ms=result.duration_ms,
+                    request={
+                        "fixture": fixture,
+                        "Body": payload.get("Body", ""),
+                        "payload_summary": {
+                            k: v
+                            for k, v in payload.items()
+                            if k in ("From", "To", "Body", "NumMedia")
+                        },
+                    },
+                    response={
+                        "status": result.status,
+                        "raw_body": result.body[:2000],
+                        "parsed_messages": result.messages,
+                    },
+                    assertions={"passed": passed, "checks": checks},
+                )
+            )
 
         if not json_output:
             status = (
@@ -320,4 +364,37 @@ def run_scenario(
         )
         print(f"  {summary}\n")
 
-    return {"ok": all_pass, "scenario": name, "steps": results}
+    # Save transcript
+    output = {"ok": all_pass, "scenario": name, "steps": results}
+    if transcript and transcript_turns:
+        from pathlib import Path
+
+        from transcript import Transcript
+
+        t = Transcript(
+            scenario=name,
+            server_url=url,
+            config={
+                "from": from_number,
+                "to": to_number,
+                "profile": profile_name,
+                "token_set": bool(token),
+            },
+            turns=transcript_turns,
+            summary={
+                "total_steps": len(steps),
+                "passed": sum(1 for r in results if r["passed"]),
+                "failed": sum(1 for r in results if not r["passed"]),
+                "duration_ms": sum(turn.duration_ms for turn in transcript_turns),
+                "all_passed": all_pass,
+            },
+        )
+        json_path, html_path = t.save(Path(transcript_dir))
+        output["transcript_json"] = str(json_path)
+        output["transcript_html"] = str(html_path)
+        if not json_output:
+            print(f"  {Colors.CYAN}Transcript saved:{Colors.RESET}")
+            print(f"    JSON: {json_path}")
+            print(f"    HTML: {html_path}\n")
+
+    return output
