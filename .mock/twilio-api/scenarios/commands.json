@@ -1,0 +1,30 @@
+{
+  "name": "commands",
+  "description": "Exercise WhatsApp commands that work without persistent onboarding state",
+  "steps": [
+    {
+      "description": "help command → command list (works even before onboarding)",
+      "payload": "text_message",
+      "overrides": {"Body": "help"},
+      "expect_contains": ["Commands"]
+    },
+    {
+      "description": "voice note → rejection message",
+      "payload": "voice_note",
+      "overrides": {},
+      "expect_contains": ["Voice notes", "type"]
+    },
+    {
+      "description": "empty body → welcome message",
+      "payload": "empty_body",
+      "overrides": {},
+      "expect_contains": ["Welcome"]
+    },
+    {
+      "description": "accept terms → onboard confirmation",
+      "payload": "text_message",
+      "overrides": {"Body": "YES"},
+      "expect_contains": ["all set"]
+    }
+  ]
+}

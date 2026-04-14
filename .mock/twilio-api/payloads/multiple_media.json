@@ -1,0 +1,18 @@
+{
+  "MessageSid": "MM{{ sid }}",
+  "SmsSid": "MM{{ sid }}",
+  "AccountSid": "AC00000000000000000000000000000000",
+  "From": "{{ from }}",
+  "To": "{{ to }}",
+  "Body": "{{ body }}",
+  "NumMedia": "2",
+  "NumSegments": "1",
+  "SmsStatus": "received",
+  "ApiVersion": "2010-04-01",
+  "MediaUrl0": "{{ media_url }}",
+  "MediaContentType0": "image/jpeg",
+  "MediaUrl1": "https://api.twilio.com/2010-04-01/Accounts/AC00000000000000000000000000000000/Messages/MM{{ sid }}/Media/ME00000000000000000000000001",
+  "MediaContentType1": "image/png",
+  "ProfileName": "{{ profile_name }}",
+  "WaId": "{{ wa_id }}"
+}

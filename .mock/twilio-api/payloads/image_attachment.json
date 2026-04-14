@@ -1,0 +1,16 @@
+{
+  "MessageSid": "MM{{ sid }}",
+  "SmsSid": "MM{{ sid }}",
+  "AccountSid": "AC00000000000000000000000000000000",
+  "From": "{{ from }}",
+  "To": "{{ to }}",
+  "Body": "{{ body }}",
+  "NumMedia": "1",
+  "NumSegments": "1",
+  "SmsStatus": "received",
+  "ApiVersion": "2010-04-01",
+  "MediaUrl0": "{{ media_url }}",
+  "MediaContentType0": "image/jpeg",
+  "ProfileName": "{{ profile_name }}",
+  "WaId": "{{ wa_id }}"
+}

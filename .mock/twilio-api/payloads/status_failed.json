@@ -1,0 +1,12 @@
+{
+  "MessageSid": "SM{{ sid }}",
+  "SmsSid": "SM{{ sid }}",
+  "AccountSid": "AC00000000000000000000000000000000",
+  "From": "{{ to }}",
+  "To": "{{ from }}",
+  "MessageStatus": "failed",
+  "ErrorCode": "63016",
+  "ErrorMessage": "Channel could not authenticate the request",
+  "ApiVersion": "2010-04-01",
+  "ChannelPrefix": "whatsapp"
+}

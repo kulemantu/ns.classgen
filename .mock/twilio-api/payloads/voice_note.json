@@ -1,0 +1,16 @@
+{
+  "MessageSid": "MM{{ sid }}",
+  "SmsSid": "MM{{ sid }}",
+  "AccountSid": "AC00000000000000000000000000000000",
+  "From": "{{ from }}",
+  "To": "{{ to }}",
+  "Body": "",
+  "NumMedia": "1",
+  "NumSegments": "1",
+  "SmsStatus": "received",
+  "ApiVersion": "2010-04-01",
+  "MediaUrl0": "https://api.twilio.com/2010-04-01/Accounts/AC00000000000000000000000000000000/Messages/MM{{ sid }}/Media/ME00000000000000000000000000000000",
+  "MediaContentType0": "audio/ogg",
+  "ProfileName": "{{ profile_name }}",
+  "WaId": "{{ wa_id }}"
+}

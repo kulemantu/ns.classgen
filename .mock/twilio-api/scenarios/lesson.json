@@ -1,0 +1,12 @@
+{
+  "name": "lesson",
+  "description": "Send a topic and expect a lesson pack response",
+  "steps": [
+    {
+      "description": "Send lesson topic → lesson pack or LLM response",
+      "payload": "text_message",
+      "overrides": {"Body": "SS2 Biology: Photosynthesis, 40 mins"},
+      "expect_contains": []
+    }
+  ]
+}

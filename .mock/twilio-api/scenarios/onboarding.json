@@ -1,0 +1,24 @@
+{
+  "name": "onboarding",
+  "description": "New user onboarding flow — welcome message, accept terms, first prompt",
+  "steps": [
+    {
+      "description": "New user sends first message → welcome + terms",
+      "payload": "text_message",
+      "overrides": {"Body": "hello"},
+      "expect_contains": ["Welcome", "YES"]
+    },
+    {
+      "description": "User accepts terms → confirmation",
+      "payload": "text_message",
+      "overrides": {"Body": "YES"},
+      "expect_contains": ["all set", "help"]
+    },
+    {
+      "description": "User sends a greeting after onboarding → greeted",
+      "payload": "text_message",
+      "overrides": {"Body": "hello"},
+      "expect_contains": ["Welcome to ClassGen", "help"]
+    }
+  ]
+}

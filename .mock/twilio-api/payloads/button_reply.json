@@ -1,0 +1,15 @@
+{
+  "MessageSid": "SM{{ sid }}",
+  "SmsSid": "SM{{ sid }}",
+  "AccountSid": "AC00000000000000000000000000000000",
+  "From": "{{ from }}",
+  "To": "{{ to }}",
+  "Body": "{{ body }}",
+  "NumMedia": "0",
+  "NumSegments": "1",
+  "SmsStatus": "received",
+  "ApiVersion": "2010-04-01",
+  "ButtonText": "{{ body }}",
+  "ProfileName": "{{ profile_name }}",
+  "WaId": "{{ wa_id }}"
+}

@@ -1,0 +1,10 @@
+{
+  "MessageSid": "SM{{ sid }}",
+  "SmsSid": "SM{{ sid }}",
+  "AccountSid": "AC00000000000000000000000000000000",
+  "From": "{{ to }}",
+  "To": "{{ from }}",
+  "MessageStatus": "delivered",
+  "ApiVersion": "2010-04-01",
+  "ChannelPrefix": "whatsapp"
+}
