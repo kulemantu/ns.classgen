@@ -432,11 +432,19 @@ def _handle_lesson_flow(flow: WAFlow, lower: str, phone: str) -> CommandResult |
             return CommandResult(
                 reply=adapter.render_block_detail(pack.blocks[idx], idx, total, blocks=pack.blocks)
             )
+        return CommandResult(reply=f"This lesson has {total} sections. Reply 1-{total}.")
 
     # Next
     if lower in ("next", "n"):
-        current = flow.data.get("current_block", -1)
-        idx = min(current + 1, total - 1)
+        current = flow.data.get("current_block")
+        if current is None:
+            return CommandResult(reply=adapter.render_sections_menu(pack))
+        if current >= total - 1:
+            return CommandResult(
+                reply="You're at the last section.\n\n"
+                "Reply 'sections' to browse, or send a new topic."
+            )
+        idx = current + 1
         update_flow(phone, data={"current_block": idx})
         return CommandResult(
             reply=adapter.render_block_detail(pack.blocks[idx], idx, total, blocks=pack.blocks)
@@ -444,8 +452,15 @@ def _handle_lesson_flow(flow: WAFlow, lower: str, phone: str) -> CommandResult |
 
     # Previous
     if lower in ("prev", "previous", "back"):
-        current = flow.data.get("current_block", 1)
-        idx = max(current - 1, 0)
+        current = flow.data.get("current_block")
+        if current is None:
+            return CommandResult(reply=adapter.render_sections_menu(pack))
+        if current <= 0:
+            return CommandResult(
+                reply="You're at the first section.\n\n"
+                "Reply 'sections' to browse, or 'next' to continue."
+            )
+        idx = current - 1
         update_flow(phone, data={"current_block": idx})
         return CommandResult(
             reply=adapter.render_block_detail(pack.blocks[idx], idx, total, blocks=pack.blocks)

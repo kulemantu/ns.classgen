@@ -142,11 +142,12 @@ def cmd_parity(positional: list[str], opts: dict) -> None:
 
     commands_to_test = {
         "commands": ["help", "hello"],
-        "onboarding": [],  # Requires specific phone flow
+        "onboarding": ["hello"],
+        "lesson": ["SS2 Biology: Photosynthesis, 40 mins"],
     }
 
     if suite == "all":
-        suites = ["commands"]
+        suites = ["commands", "onboarding"]
     elif suite in commands_to_test:
         suites = [suite]
     else:

@@ -189,10 +189,26 @@ class TestLessonBrowseFlow:
 
     def test_prev_from_start(self):
         flow = get_flow(PHONE)
-        # prev from 0 stays at 0
+        # prev from 0 gives boundary message
         result = _handle_lesson_flow(flow, "prev", PHONE)
         assert isinstance(result, CommandResult)
-        assert "Hook" in result.reply
+        assert "first section" in result.reply.lower()
+
+    def test_next_from_last_block(self):
+        """Next at the last block gives a boundary message, not a re-render."""
+        update_flow(PHONE, data={"current_block": 4})  # last block (0-indexed)
+        flow = get_flow(PHONE)
+        result = _handle_lesson_flow(flow, "next", PHONE)
+        assert isinstance(result, CommandResult)
+        assert "last section" in result.reply.lower()
+
+    def test_next_without_current_block_shows_menu(self):
+        """Next with no current_block (e.g. expired position) shows sections menu."""
+        update_flow(PHONE, data={"current_block": None})
+        flow = get_flow(PHONE)
+        result = _handle_lesson_flow(flow, "next", PHONE)
+        assert isinstance(result, CommandResult)
+        assert "Photosynthesis" in result.reply  # sections menu
 
     def test_full_lesson(self):
         flow = get_flow(PHONE)
@@ -220,6 +236,63 @@ class TestLessonBrowseFlow:
         flow = get_flow(PHONE)
         result = _handle_lesson_flow(flow, "SS2 Chemistry: Atomic Structure", PHONE)
         assert result is None  # falls through to LLM
+
+    def test_block_by_name_out_of_range(self):
+        """Block name that maps to an index beyond the pack's block count."""
+        # Create a 2-block pack — "homework" maps to index 3 which is out of range
+        short_pack = LessonPack(
+            meta=LessonMeta(subject="Bio", topic="Short", class_level="SS1"),
+            blocks=[
+                OpenerBlock(title="Hook", body="A hook."),
+                ExplainBlock(title="Concept", body="Explain."),
+            ],
+        )
+        clear_flow(PHONE)
+        set_flow(
+            PHONE,
+            WAFlow(
+                type="lesson_browse",
+                step="menu",
+                data={"lesson_pack": short_pack.model_dump(), "current_block": 0},
+            ),
+        )
+        flow = get_flow(PHONE)
+        result = _handle_lesson_flow(flow, "homework", PHONE)
+        assert isinstance(result, CommandResult)
+        assert "2 sections" in result.reply  # "This lesson has 2 sections"
+
+    def test_short_pack_navigation(self):
+        """Navigation works correctly with a 2-block lesson."""
+        short_pack = LessonPack(
+            meta=LessonMeta(subject="Bio", topic="Short", class_level="SS1"),
+            blocks=[
+                OpenerBlock(title="Hook", body="A hook."),
+                ExplainBlock(title="Concept", body="Explain."),
+            ],
+        )
+        clear_flow(PHONE)
+        set_flow(
+            PHONE,
+            WAFlow(
+                type="lesson_browse",
+                step="menu",
+                data={"lesson_pack": short_pack.model_dump(), "current_block": 0},
+            ),
+        )
+        # Next from 0 → block 1
+        flow = get_flow(PHONE)
+        result = _handle_lesson_flow(flow, "next", PHONE)
+        assert "Concept" in result.reply
+
+        # Next from 1 → boundary
+        flow = get_flow(PHONE)
+        result = _handle_lesson_flow(flow, "next", PHONE)
+        assert "last section" in result.reply.lower()
+
+        # Number "3" out of range
+        flow = get_flow(PHONE)
+        result = _handle_lesson_flow(flow, "3", PHONE)
+        assert "2 sections" in result.reply
 
 
 class TestFlowFallthrough:

@@ -1,6 +1,15 @@
 """Core engine — build payloads, compute signatures, send HTTP, parse responses."""
 
+# ruff: noqa: E402 — sys.path setup must precede sibling imports
 from __future__ import annotations  # noqa: I001
+
+import sys
+from pathlib import Path as _Path
+
+# Ensure sibling imports (twiml_parser, transcript) resolve regardless of caller
+_here = str(_Path(__file__).parent)
+if _here not in sys.path:
+    sys.path.insert(0, _here)
 
 import json
 import re
