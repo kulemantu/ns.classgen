@@ -158,6 +158,24 @@ async def twilio_webhook(request: Request):
     if has_content:
         log_usage(phone, "lesson")
 
+    # Store lesson flow for WhatsApp navigation (sections, next, prev, etc.)
+    if lesson_pack and has_content:
+        from classgen.data.wa_flows import WAFlow, set_flow
+
+        set_flow(
+            phone,
+            WAFlow(
+                type="lesson_browse",
+                step="menu",
+                data={
+                    "lesson_pack": lesson_pack.model_dump(),
+                    "homework_code": homework_code,
+                    "pdf_url": f"{base_url}{pdf_url}" if pdf_url else None,
+                    "current_block": 0,
+                },
+            ),
+        )
+
     # Build WhatsApp-friendly reply (keep under 1500 chars to avoid truncation)
     if has_content and (len(ai_response_text) > 1500 or lesson_pack):
         if lesson_pack and flags.structured_output:
@@ -167,6 +185,9 @@ async def twilio_webhook(request: Request):
             )
         else:
             reply_text = _whatsapp_summary(ai_response_text, homework_code, base_url)
+        # Add navigation hint when a lesson flow was stored
+        if lesson_pack:
+            reply_text += "\n\nReply 'sections' to browse the full lesson."
     else:
         reply_text = ai_response_text
         if homework_code:

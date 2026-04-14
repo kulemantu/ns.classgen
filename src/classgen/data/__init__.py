@@ -63,6 +63,13 @@ from .threads import (
     get_active_thread,
     set_active_thread,
 )
+from .wa_flows import (
+    WAFlow,
+    clear_flow,
+    get_flow,
+    set_flow,
+    update_flow,
+)
 
 __all__ = [
     # client
@@ -115,4 +122,10 @@ __all__ = [
     # threads
     "set_active_thread",
     "get_active_thread",
+    # wa_flows
+    "WAFlow",
+    "set_flow",
+    "get_flow",
+    "update_flow",
+    "clear_flow",
 ]

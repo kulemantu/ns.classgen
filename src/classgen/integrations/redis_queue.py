@@ -44,6 +44,11 @@ class BatchJob:
     results: list[dict] = field(default_factory=list)
 
 
+def get_redis():
+    """Return the shared Redis client instance, or None if unavailable."""
+    return _redis
+
+
 def create_batch_job(job_id: str, teacher_phone: str, topics: list[dict]) -> BatchJob:
     """Create a batch generation job."""
     job = BatchJob(

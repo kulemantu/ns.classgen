@@ -133,5 +133,24 @@ def handle_command(body: str, phone: str, base_url: str) -> CommandResult | None
         class_name = re.sub(r"^covered\s+", "", text, flags=re.IGNORECASE).strip()
         return _cmd_covered(phone, class_name)
 
+    # --- Active flow handling (lesson browse, etc.) ---
+    from classgen.data.wa_flows import get_flow
+
+    flow = get_flow(phone)
+    if flow:
+        flow_result = _dispatch_flow(flow, lower, phone)
+        if flow_result is not None:
+            return flow_result
+
     # Not a command — fall through to LLM
+    return None
+
+
+def _dispatch_flow(flow, lower: str, phone: str) -> CommandResult | None:
+    """Route input to the appropriate flow handler based on flow type."""
+    from classgen.commands.handlers import _handle_lesson_flow
+
+    if flow.type == "lesson_browse":
+        return _handle_lesson_flow(flow, lower, phone)
+    # Future: register, homework_browse, etc.
     return None

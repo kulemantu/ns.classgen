@@ -9,12 +9,14 @@ from __future__ import annotations
 import re
 import time
 
+from classgen.channels.whatsapp import WhatsAppAdapter
 from classgen.commands.router import CommandResult
 from classgen.content.curriculum import (
     list_subjects,
     parse_class_string,
     suggest_topics,
 )
+from classgen.core.models import LessonPack
 from classgen.data.homework import list_homework_codes_for_teacher
 from classgen.data.lessons import get_covered_topics
 from classgen.data.parents import save_parent_subscription
@@ -31,6 +33,7 @@ from classgen.data.teachers import (
     save_teacher,
 )
 from classgen.data.threads import set_active_thread
+from classgen.data.wa_flows import WAFlow, clear_flow, update_flow
 
 # --- Command implementations ---
 
@@ -67,6 +70,11 @@ def _cmd_help(base_url: str) -> CommandResult:
             "*Curriculum*\n"
             "  suggest [class] -- topic suggestions\n"
             "  covered [class] -- what you've taught\n\n"
+            "*Lesson Browser*\n"
+            "  sections -- browse blocks after generating\n"
+            "  1-5 or name -- view a section\n"
+            "  next / prev -- step through\n"
+            "  full -- show everything\n\n"
             "*Other*\n"
             "  stats -- your lesson stats\n"
             "  study [topic] -- quick recap\n"
@@ -368,3 +376,99 @@ def _cmd_covered(phone: str, class_name: str) -> CommandResult:
     for t in covered:
         lines.append(f"  - {t}")
     return CommandResult(reply="\n".join(lines))
+
+
+# --- WhatsApp flow handlers ---
+
+_BLOCK_NAME_MAP: dict[str, int] = {
+    "opener": 0,
+    "hook": 0,
+    "explain": 1,
+    "concept": 1,
+    "activity": 2,
+    "homework": 3,
+    "notes": 4,
+    "teacher notes": 4,
+}
+
+
+def _handle_lesson_flow(flow: WAFlow, lower: str, phone: str) -> CommandResult | None:
+    """Handle input within an active lesson_browse flow.
+
+    Returns None to fall through to normal command/LLM processing.
+    """
+    pack_dict = flow.data.get("lesson_pack")
+    if not pack_dict:
+        clear_flow(phone)
+        return None
+
+    pack = LessonPack.model_validate(pack_dict)
+    if not pack.blocks:
+        clear_flow(phone)
+        return None
+
+    adapter = WhatsAppAdapter()
+    total = len(pack.blocks)
+
+    # Sections menu
+    if lower in ("sections", "blocks", "browse"):
+        return CommandResult(reply=adapter.render_sections_menu(pack))
+
+    # Block by number
+    if lower in ("1", "2", "3", "4", "5"):
+        idx = int(lower) - 1
+        if idx < total:
+            update_flow(phone, data={"current_block": idx})
+            return CommandResult(
+                reply=adapter.render_block_detail(pack.blocks[idx], idx, total, blocks=pack.blocks)
+            )
+        return CommandResult(reply=f"This lesson has {total} sections. Reply 1-{total}.")
+
+    # Block by name
+    if lower in _BLOCK_NAME_MAP:
+        idx = _BLOCK_NAME_MAP[lower]
+        if idx < total:
+            update_flow(phone, data={"current_block": idx})
+            return CommandResult(
+                reply=adapter.render_block_detail(pack.blocks[idx], idx, total, blocks=pack.blocks)
+            )
+
+    # Next
+    if lower in ("next", "n"):
+        current = flow.data.get("current_block", -1)
+        idx = min(current + 1, total - 1)
+        update_flow(phone, data={"current_block": idx})
+        return CommandResult(
+            reply=adapter.render_block_detail(pack.blocks[idx], idx, total, blocks=pack.blocks)
+        )
+
+    # Previous
+    if lower in ("prev", "previous", "back"):
+        current = flow.data.get("current_block", 1)
+        idx = max(current - 1, 0)
+        update_flow(phone, data={"current_block": idx})
+        return CommandResult(
+            reply=adapter.render_block_detail(pack.blocks[idx], idx, total, blocks=pack.blocks)
+        )
+
+    # Full lesson
+    if lower in ("full", "all", "show all"):
+        parts = []
+        for i, block in enumerate(pack.blocks):
+            parts.append(adapter.render_block_detail(block, i, total, blocks=pack.blocks))
+        return CommandResult(reply="\n\n---\n\n".join(parts))
+
+    # PDF link
+    if lower == "pdf":
+        pdf_url = flow.data.get("pdf_url")
+        if pdf_url:
+            return CommandResult(reply=f"Download your lesson plan:\n{pdf_url}")
+        return CommandResult(reply="No PDF available for this lesson.")
+
+    # Exit flow
+    if lower in ("done", "exit"):
+        clear_flow(phone)
+        return CommandResult(reply="Lesson browser closed. Send a topic for a new lesson.")
+
+    # Not a flow command — fall through
+    return None
