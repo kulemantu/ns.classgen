@@ -64,7 +64,7 @@ Root `main.py` exposes `app` via `from classgen.api.app import app`, and include
 Three delivery channels share the same lesson generation core and command router. Each has a `ChannelAdapter` in `src/classgen/channels/`:
 
 - **Web chat** (`POST /api/chat`, `POST /api/chat/stream`) — browser UI in `index.html`. `WebAdapter` returns structured JSON; frontend renders blocks as rich cards. SSE streaming available via `/api/chat/stream`.
-- **WhatsApp** (`POST /webhook/twilio`) — Twilio webhook, returns TwiML. `WhatsAppAdapter` renders plain-text summary (block titles + homework link).
+- **WhatsApp** (`POST /webhook/twilio`) — Twilio webhook, returns TwiML. `WhatsAppAdapter` renders plain-text summary (block titles + homework link). After lesson generation, a `lesson_browse` flow is stored in Redis enabling section navigation via `sections`, `1`-`5`, `next`/`prev`, block names.
 - **PDF** — `PDFAdapter` wraps `generate_pdf_from_markdown()` with structured LessonPack input.
 
 When `FF_STRUCTURED_OUTPUT` is off, the legacy path (regex parsing of `[BLOCK_START_X]...[BLOCK_END]` markers) is used. When on, the LLM returns JSON, parsed into a `LessonPack` Pydantic model, and routed through channel adapters.
@@ -89,7 +89,8 @@ GitHub Actions (`.github/workflows/ci.yml`): runs `pytest` + `ruff check` on pus
 ## Key Patterns
 
 - **In-memory fallback everywhere**: each data module checks `if not supabase:` and falls back to `_mem_*` dict operations.
-- **Command routing**: `classgen.commands.router.handle_command()` returns `CommandResult | None`. `None` means "not a command, send to LLM".
+- **Command routing**: `classgen.commands.router.handle_command()` returns `CommandResult | None`. `None` means "not a command, send to LLM". After existing commands, the router checks for an active WhatsApp flow (`get_flow(phone)`) and dispatches to flow-specific handlers before the LLM fallthrough.
+- **WhatsApp flow engine**: `data/wa_flows.py` provides `WAFlow(type, step, data)` stored in Redis (1hr TTL) with in-memory fallback. Each phone has at most one active flow. Currently supports `lesson_browse`; designed for future `register` and `homework_browse` flows. Navigation commands (sections, 1-5, next/prev, block names, full, pdf, done) only match when a flow is active.
 - **Dual lesson format**: Legacy `[BLOCK_START_TYPE]...[BLOCK_END]` markers (flags off) or structured JSON `LessonPack` (flags on). `parse_lesson_response()` in `core/parsers.py` tries JSON first, falls back to block regex. Both produce a `LessonPack` Pydantic model.
 - **Feature flags**: 4 env-var flags in `core/feature_flags.py` — `FF_STRUCTURED_OUTPUT`, `FF_SSE_STREAMING`, `FF_JSON_RESPONSE_FORMAT`, `FF_EMBEDDED_QUIZ`. All default off. `structured_output` is the foundation; the other 3 depend on it. Use `flags.effective_*` properties for resolved state.
 - **Onboarding**: First-visit web users see a 3-slide intro overlay (brand → how it works → features + terms). WhatsApp users get a welcome message and must reply YES. Shared content config in `content/onboarding.py`. Terms page at `/terms`. State: localStorage (`classgen_intro_seen`) + server (`onboarded_at` on teachers table).
@@ -103,3 +104,30 @@ Only `OPENROUTER_API_KEY` is required to run locally without Docker. See `.env.e
 Docker compose sets `SUPABASE_URL`, `SUPABASE_KEY`, `DATABASE_URL`, `REDIS_URL`, and `APP_ROOT` automatically. Feature flags (`FF_*`) can be set in `docker-compose.override.yml` (gitignored) for local dev.
 
 **Important**: After running DDL migrations, always restart PostgREST (`docker compose restart rest`) to refresh its schema cache.
+
+## Mock Testing Tools
+
+### WhatsApp simulator (`.mock/twilio-api/`)
+
+Sends production-realistic Twilio payloads to a running ClassGen instance with valid `X-Twilio-Signature` headers. Parses TwiML responses.
+
+```bash
+uv run python .mock/twilio-api/cli.py send "hello"          # one-shot
+uv run python .mock/twilio-api/cli.py scenario onboarding    # multi-step
+uv run python .mock/twilio-api/cli.py chat                   # interactive REPL
+uv run python .mock/twilio-api/cli.py scenario commands --transcript  # save JSON+HTML
+```
+
+Fixtures in `payloads/` (10 templates), scenarios in `scenarios/` (4 scripts). `--transcript` saves to `.local/transcripts/` as JSON + WhatsApp-style HTML chat view.
+
+### Parity runner (`.mock/e2e/`)
+
+Compares web `/api/chat` and WhatsApp `/webhook/twilio` responses for the same inputs.
+
+```bash
+uv run python .mock/e2e/cli.py parity commands    # compare help, hello
+uv run python .mock/e2e/cli.py web "help"          # web channel only
+uv run python .mock/e2e/cli.py info                # show config
+```
+
+Produces HTML parity reports in `.local/transcripts/`.
