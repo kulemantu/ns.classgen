@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 
 from classgen.api.schemas import (
     TeacherClassRequest,
+    TeacherCountryRequest,
     TeacherRegisterRequest,
     TeacherUpdateRequest,
 )
@@ -30,8 +31,10 @@ from classgen.data import (
     list_homework_codes_for_teacher,
     remove_teacher_class,
     save_teacher,
+    update_teacher_country,
     update_teacher_name,
 )
+from classgen.i18n import SUPPORTED_COUNTRIES
 
 router = APIRouter()
 
@@ -62,6 +65,7 @@ async def teacher_profile_api(thread_id: str = ""):
             "name": teacher.get("name", ""),
             "slug": teacher.get("slug", ""),
             "classes": teacher.get("classes", []),
+            "country": teacher.get("country", ""),
         },
         "stats": stats,
         "codes": codes,
@@ -78,6 +82,7 @@ async def teacher_register_api(req: TeacherRegisterRequest):
             "name": teacher.get("name", ""),
             "slug": teacher.get("slug", ""),
             "classes": teacher.get("classes", []),
+            "country": teacher.get("country", ""),
         },
     }
 
@@ -93,8 +98,24 @@ async def teacher_update_api(req: TeacherUpdateRequest):
             "name": teacher.get("name", ""),
             "slug": teacher.get("slug", ""),
             "classes": teacher.get("classes", []),
+            "country": teacher.get("country", ""),
         },
     }
+
+
+@router.patch("/api/teacher/country")
+async def teacher_update_country_api(req: TeacherCountryRequest):
+    """Update a web teacher's country."""
+    teacher = update_teacher_country(req.thread_id, req.country)
+    if not teacher:
+        return JSONResponse({"error": "Teacher not found"}, status_code=404)
+    return {"country": teacher.get("country", "")}
+
+
+@router.get("/api/teacher/countries")
+async def teacher_countries_api():
+    """List supported countries for the dropdown."""
+    return {"countries": SUPPORTED_COUNTRIES}
 
 
 @router.post("/api/teacher/classes")
