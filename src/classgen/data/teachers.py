@@ -38,7 +38,9 @@ def _unique_slug(slug: str, phone: str) -> str:
 # --- Teachers ---
 
 
-def save_teacher(phone: str, name: str, school: str = "", school_slug: str = "") -> dict:
+def save_teacher(
+    phone: str, name: str, school: str = "", school_slug: str = "", country: str = ""
+) -> dict:
     """Register or update a teacher. Returns the teacher record."""
     slug = _unique_slug(_make_slug(name), phone)
     record = {
@@ -48,6 +50,7 @@ def save_teacher(phone: str, name: str, school: str = "", school_slug: str = "")
         "school": school,
         "school_slug": school_slug,
         "classes": [],
+        "country": country,
     }
     if not supabase:
         record["created_at"] = datetime.now(timezone.utc).isoformat()
@@ -57,6 +60,8 @@ def save_teacher(phone: str, name: str, school: str = "", school_slug: str = "")
             existing["slug"] = slug
             if school:
                 existing["school"] = school
+            if country:
+                existing["country"] = country
             return existing
         _mem_teachers[phone] = record
         print(f"[local] Registered teacher {name} ({phone})")
@@ -153,6 +158,23 @@ def update_teacher_name(phone: str, new_name: str) -> dict | None:
         return teacher
     except Exception as e:
         print(f"Error updating teacher name: {e}")
+        return None
+
+
+def update_teacher_country(phone: str, country: str) -> dict | None:
+    """Update a teacher's country."""
+    teacher = get_teacher_by_phone(phone)
+    if not teacher:
+        return None
+    if not supabase:
+        teacher["country"] = country
+        return teacher
+    try:
+        supabase.table("teachers").update({"country": country}).eq("phone", phone).execute()
+        teacher["country"] = country
+        return teacher
+    except Exception as e:
+        print(f"Error updating teacher country: {e}")
         return None
 
 

@@ -57,6 +57,7 @@ from .teachers import (
     get_teacher_lesson_stats,
     remove_teacher_class,
     save_teacher,
+    update_teacher_country,
     update_teacher_name,
 )
 from .threads import (
@@ -85,6 +86,7 @@ __all__ = [
     "add_teacher_class",
     "remove_teacher_class",
     "update_teacher_name",
+    "update_teacher_country",
     "get_teacher_lesson_stats",
     # homework
     "HOMEWORK_CODE_TTL_DAYS",
