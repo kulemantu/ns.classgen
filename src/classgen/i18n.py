@@ -26,6 +26,52 @@ PHONE_LOCALES: dict[str, tuple[str, str]] = {
     "+1": ("en_US", "USD"),  # US / international fallback
 }
 
+# Phone country-code -> country name (for teacher profile auto-detection)
+PHONE_COUNTRIES: dict[str, str] = {
+    "+234": "Nigeria",
+    "+254": "Kenya",
+    "+233": "Ghana",
+    "+255": "Tanzania",
+    "+256": "Uganda",
+    "+27": "South Africa",
+    "+250": "Rwanda",
+    "+251": "Ethiopia",
+    "+260": "Zambia",
+    "+263": "Zimbabwe",
+    "+265": "Malawi",
+    "+267": "Botswana",
+    "+237": "Cameroon",
+    "+225": "Ivory Coast",
+    "+221": "Senegal",
+    "+91": "India",
+    "+44": "United Kingdom",
+    "+1": "United States",
+}
+
+# All supported countries for web dropdown (superset of phone detection)
+SUPPORTED_COUNTRIES: list[str] = sorted(
+    {
+        "Nigeria",
+        "Kenya",
+        "Ghana",
+        "Tanzania",
+        "Uganda",
+        "South Africa",
+        "Rwanda",
+        "Ethiopia",
+        "Zambia",
+        "Zimbabwe",
+        "Malawi",
+        "Botswana",
+        "Cameroon",
+        "Ivory Coast",
+        "Senegal",
+        "India",
+        "United Kingdom",
+        "United States",
+    }
+)
+
 # Best locale for displaying each currency's native symbol.
 _CURRENCY_LOCALE: dict[str, str] = {
     "NGN": "en_NG",
@@ -58,6 +104,26 @@ def locale_from_phone(phone: str) -> tuple[str, str]:
         if phone.startswith(prefix):
             return PHONE_LOCALES[prefix]
     return DEFAULT_LOCALE, DEFAULT_CURRENCY
+
+
+def country_from_phone(phone: str) -> str:
+    """Infer country name from a phone number's country code.
+
+    Returns empty string if the prefix is unknown.
+
+    >>> country_from_phone("+2348012345678")
+    'Nigeria'
+    >>> country_from_phone("whatsapp:+254712345678")
+    'Kenya'
+    >>> country_from_phone("+9999999")
+    ''
+    """
+    # Strip whatsapp: prefix if present
+    clean = phone.replace("whatsapp:", "")
+    for prefix in sorted(PHONE_COUNTRIES, key=len, reverse=True):
+        if clean.startswith(prefix):
+            return PHONE_COUNTRIES[prefix]
+    return ""
 
 
 def format_currency(amount: float | int, currency: str, locale: str | None = None) -> str:
