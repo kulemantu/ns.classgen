@@ -1343,8 +1343,13 @@
 
         async function fetchProfile() {
             try {
-                const resp = await fetch('/api/teacher/profile?thread_id=' + encodeURIComponent(threadId));
-                const data = await resp.json();
+                const [profileResp, countriesResp] = await Promise.all([
+                    fetch('/api/teacher/profile?thread_id=' + encodeURIComponent(threadId)),
+                    fetch('/api/teacher/countries'),
+                ]);
+                const data = await profileResp.json();
+                const countriesData = await countriesResp.json();
+                window._countryOptions = countriesData.countries || [];
                 profileState.loaded = true;
                 profileState.registered = data.registered;
                 if (data.registered) {
@@ -1399,6 +1404,13 @@
                         <input class="sidebar-input" id="edit-name" type="text" value="${escapeHtml(t.name)}" maxlength="100">
                         <button class="sidebar-btn" onclick="updateName()">Save</button>
                     </div>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Country</div>
+                    <select class="sidebar-input" id="country-select" onchange="updateCountry()" style="width:100%">
+                        <option value="">Select country</option>
+                        ${(window._countryOptions || []).map(c => `<option value="${escapeHtml(c)}" ${c === (t.country || '') ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+                    </select>
                 </div>
                 <div class="sidebar-stats">
                     <div class="sidebar-stat"><div class="num">${s.total}</div><div class="lbl">Total</div></div>
@@ -1486,6 +1498,21 @@
                 profileState.teacher = data.teacher;
                 renderSidebar();
             } catch (e) { console.error('Update name error:', e); }
+        }
+
+        async function updateCountry() {
+            const sel = document.getElementById('country-select');
+            const country = sel ? sel.value : '';
+            if (!country) return;
+            try {
+                const resp = await fetch('/api/teacher/country', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ thread_id: threadId, country }),
+                });
+                if (!resp.ok) return;
+                profileState.teacher.country = country;
+            } catch (e) { console.error('Update country error:', e); }
         }
 
         async function addClass() {

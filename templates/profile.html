@@ -4,7 +4,7 @@
 {% block body %}
 <h1>{{ teacher.name }}</h1>
 <div class="subtitle">
-  {% if teacher.school %}{{ teacher.school }} &middot; {% endif %}ClassGen Teacher
+  {% if teacher.school %}{{ teacher.school }} &middot; {% endif %}{% if teacher.country %}{{ teacher.country }} &middot; {% endif %}ClassGen Teacher
 </div>
 
 {% if stats %}
