@@ -106,7 +106,10 @@ async def twilio_webhook(request: Request):
         if upper == "YES":
             # Create minimal teacher record if needed, then mark onboarded
             if not get_teacher_by_phone(phone):
-                save_teacher(phone, phone, phone)
+                from classgen.i18n import country_from_phone
+
+                country = country_from_phone(phone)
+                save_teacher(phone, phone, phone, country=country)
             mark_onboarded(phone)
             twiml_response.message(
                 "You're all set! Send a topic to generate your first "

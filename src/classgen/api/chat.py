@@ -111,6 +111,15 @@ def _parse_lesson_request(msg: str) -> tuple[str, str, str]:
     return "", "", ""
 
 
+def _country_context(teacher_phone: str) -> str:
+    """Return a newline-wrapped country line for prompt injection, or empty string."""
+    if not teacher_phone:
+        return ""
+    teacher = get_teacher_by_phone(teacher_phone)
+    country = teacher.get("country", "") if teacher else ""
+    return f"\nTeacher's country: {country}\n" if country else ""
+
+
 async def _generate_lesson(
     user_message: str,
     thread_id: str,
@@ -162,7 +171,8 @@ async def _generate_lesson(
     )
 
     prompt = (
-        f"Previous Conversation Context:\n{history_context}\n\nTeacher's message:\n{user_message}"
+        f"Previous Conversation Context:\n{history_context}"
+        f"{_country_context(teacher_phone)}\n\nTeacher's message:\n{user_message}"
     )
 
     # Branch: structured JSON or legacy text blocks
@@ -479,7 +489,7 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
         )
         prompt = (
             f"Previous Conversation Context:\n{history_context}"
-            f"\n\nTeacher's message:\n{req.message}"
+            f"{_country_context(teacher_phone)}\n\nTeacher's message:\n{req.message}"
         )
 
         # Stream from LLM
