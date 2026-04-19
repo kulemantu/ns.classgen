@@ -201,7 +201,7 @@ Changes:
 - [x] Add TEACHER_NOTES block (assessment tips, expected answers, common mistakes)
 - [x] Improve ACTIVITY block (timing, grouping, materials, large-class-friendly)
 - [x] Curriculum awareness: prompt includes country/exam board context (WAEC, NECO, Cambridge)
-- [ ] Test with 5 real teachers -- iterate on content quality based on feedback
+- [x] Test with 5 real teachers -- iterate on content quality based on feedback (April 2026, via web emulator; teachers confirmed features satisfied their immediate needs)
 
 Success metric: 3 of 5 teachers say "I would use this tomorrow" without editing.
 
@@ -543,7 +543,7 @@ scratch/           # Experiments — NOT importable, NOT in package.
 
 **Goal:** LLM returns structured JSON instead of text blocks. Each channel renders the same data differently. SSE streaming eliminates the dead wait on web.
 
-**Status:** Implemented and deployed (April 2026). All features flag-gated behind `FF_STRUCTURED_OUTPUT`, `FF_SSE_STREAMING`, `FF_JSON_RESPONSE_FORMAT`, `FF_EMBEDDED_QUIZ`. Flags default off; production flags off. Additionally: 3-slide web onboarding intro, WhatsApp welcome with terms acceptance, `/terms` page, conversation persistence, toast/native notifications, DM Serif Display headings in overlays. 350 tests.
+**Status:** Implemented and deployed (April 2026). All features flag-gated behind `FF_STRUCTURED_OUTPUT`, `FF_SSE_STREAMING`, `FF_JSON_RESPONSE_FORMAT`, `FF_EMBEDDED_QUIZ`. Flags default off; production flags off. Additionally: 3-slide web onboarding intro, WhatsApp welcome with terms acceptance, `/terms` page, conversation persistence, toast/native notifications, DM Serif Display headings in overlays, WhatsApp flow engine (Redis-backed multi-turn lesson browsing). **Teacher country (April 2026):** migration 005 adds `country` on `teachers`; auto-detected from WhatsApp phone prefix on `YES` onboarding (via `country_from_phone()` in `i18n.py`), selectable in the web profile sidebar; injected into LLM prompt via shared `_country_context()` helper (covers blocking `/api/chat` and SSE `/api/chat/stream`). 422 tests, ruff clean.
 
 #### User Stories
 
@@ -739,10 +739,12 @@ Every user story traces to: schema changes → new/modified modules → endpoint
 |---|---|---|---|
 | 001 | `001_baseline.sql` | V3.1 | Marker for init.sql schema (applied) |
 | 002 | `002_add_updated_at.sql` | V3.1 | updated_at columns + triggers (applied) |
-| 003 | `003_lesson_json.sql` | V4.1 | Add `lesson_json jsonb` to `homework_codes` and `lesson_cache`. Backfill from text columns. |
-| 004 | `004_add_students.sql` | V4.3 | Create `students` table. Add `student_id` to `quiz_submissions`. |
-| 005 | `005_add_community.sql` | V4.3 | Create `community_lessons`, indexes on subject/class/rating. |
-| 006 | `006_add_verification.sql` | V4.4 | Create `teacher_verification`, `content_flags`, `lesson_endorsements`. |
+| 003 | `003_add_lesson_json.sql` | V4.1 | Add `lesson_json jsonb` to `homework_codes` and `lesson_cache` (applied) |
+| 004 | `004_add_onboarded_at.sql` | V4.1 | Onboarding consent timestamp on `teachers` (applied) |
+| 005 | `005_add_country.sql` | V4.1 | Teacher country for curriculum-aware prompt injection (applied) |
+| 006 | `006_add_students.sql` | V4.3 | Create `students` table. Add `student_id` to `quiz_submissions`. |
+| 007 | `007_add_community.sql` | V4.3 | Create `community_lessons`, indexes on subject/class/rating. |
+| 008 | `008_add_verification.sql` | V4.4 | Create `teacher_verification`, `content_flags`, `lesson_endorsements`. |
 
 ---
 
