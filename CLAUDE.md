@@ -86,6 +86,36 @@ Uses OpenRouter (`x-ai/grok-4.1-fast`) via the OpenAI SDK. Two system prompts in
 
 GitHub Actions (`.github/workflows/ci.yml`): runs `pytest` + `ruff check` on push/PR to `main`/`master`. Uses Python 3.14.
 
+## Deployment
+
+**ClassGen uses manual SSH + `docker compose` with nginx-proxy. It is NOT on Dokploy.**
+
+Dokploy is used by sibling repos in `~/space/` (`ai-ops-platform`, `wa.dt.wrld`) — do not extrapolate. `git push origin master` does not trigger any auto-deploy for this project.
+
+Release sequence:
+
+```bash
+# 1. Push (no auto-deploy)
+git push origin master
+
+# 2. SSH to production
+ssh root@165.22.80.123
+cd /var/opt/ns.classgen
+git pull
+
+# 3. Rebuild (nginx-proxy compose, prod env)
+docker compose --env-file deploy/.env.prod \
+  -f deploy/docker-compose.nginx-proxy.yml up -d --build
+
+# 4. Apply migrations (when schema changed)
+docker exec classgen-app /app/.venv/bin/python -m migrations.runner
+
+# 5. Refresh PostgREST schema cache after DDL
+docker restart classgen-rest
+```
+
+Host serves `class.dater.world` alongside other `*.dater.world` sites via a shared nginx-proxy container. Four ClassGen containers: `classgen-app`, `classgen-db` (Postgres 16), `classgen-rest` (PostgREST v12), `classgen-redis`. Prod env in `deploy/.env.prod` on the server (gitignored).
+
 ## Key Patterns
 
 - **In-memory fallback everywhere**: each data module checks `if not supabase:` and falls back to `_mem_*` dict operations.
