@@ -1,6 +1,10 @@
 # ClassGen Product Roadmap
 
-Confidential -- Working Draft | March 2026
+Confidential -- Working Draft | March 2026 (reviewed April 2026)
+
+> **April 2026 review note.** V4.1 shipped broader than originally scoped — billing enforcement, web push, and most of V4.2's data model all landed flag-gated. V4.2 is re-scoped: the student-facing UI consuming `homework_structured` is the remaining gap (see V4.2a below). Before starting V4.2a, validate V4.1 with flags on via `.mock/e2e/` parity and consider enabling `FF_STRUCTURED_OUTPUT` in production so the data V4.2a renders actually flows.
+
+**Status convention:** `[x]` shipped to codebase · `[ ]` planned · `[~]` partial / scaffold only. Deployment and feature-flag state is documented per phase — e.g. V4.1 features are merged but flag-gated off in production as of April 2026. Every user story and bullet in this doc uses these markers so status is readable at a glance.
 
 ---
 
@@ -182,11 +186,11 @@ Opt-in weekly digest sent to parents via WhatsApp:
 ### V1.0 -- Foundation (DONE)
 
 What was built:
-- WhatsApp webhook (Twilio) + web chat UI with Three.js background
-- OpenRouter LLM integration (Grok 4.1 Fast via OpenAI SDK)
-- PDF download (FPDF2, latin-1 core fonts)
-- Supabase session logging
-- Basic 3-block lesson pack (Hook, Fact, Application)
+- [x] WhatsApp webhook (Twilio) + web chat UI with Three.js background
+- [x] OpenRouter LLM integration (Grok 4.1 Fast via OpenAI SDK)
+- [x] PDF download (FPDF2, latin-1 core fonts)
+- [x] Supabase session logging
+- [x] Basic 3-block lesson pack (Hook, Fact, Application)
 
 ---
 
@@ -310,7 +314,7 @@ Reality: most teachers will not follow a strict curriculum order. They'll teach 
 - [x] "Suggest" command: `suggest SS2 Biology` → shows uncovered/covered topics. `suggest` with no class lists teacher's classes.
 - [x] Topic history: `covered SS2 Biology` → shows what the teacher has already generated. Logged automatically on lesson generation.
 - [x] Content cache: deduplicate LLM calls for identical (subject, topic, class, exam_board) tuples across teachers. Cache hit skips LLM.
-- [x] Batch generation: `jobs.py` async job queue with Redis support and in-memory fallback, `run_batch_generation()` processes N topics sequentially
+- [~] Batch generation: Redis queue scaffold lives in `src/classgen/integrations/redis_queue.py` (in-memory fallback). No `run_batch_generation()` service or WhatsApp-facing batch command currently ships — deferred.
 - [x] Combined week-pack PDF: `generate_week_pack()` in pdf_generator.py produces multi-lesson documents
 
 Technical:
@@ -526,14 +530,14 @@ scratch/           # Experiments — NOT importable, NOT in package.
 
 #### User Stories
 
-**US-4.0.1: Package restructure**
+**[x] US-4.0.1: Package restructure**
 - As a developer, when I run `uv run pytest`, all existing tests pass against the new `src/classgen/` layout.
 - Architecture: Update `pyproject.toml` (`packages = ["src"]`, ruff `src = ["src"]`). Root `main.py` becomes a one-liner (`from classgen.api.app import app`). Dockerfile CMD unchanged.
 - Tables: None (no schema changes)
 - Modules: All current modules → new locations per migration map
 - Endpoints: All existing endpoints preserved, same paths
 
-**US-4.0.2: Scratchpad directories**
+**[x] US-4.0.2: Scratchpad directories**
 - As a developer, I have gitignored scratch directories for prompt experiments, SQL exploration, UI prototypes, test scripts, and performance testing.
 - Architecture: `scratch/` with 5 subdirectories, each with `README.md`. Added to `.gitignore` for `scratch/scripts/` and `scratch/perf/` (may contain credentials). `scratch/prompts/` and `scratch/sql/` are committed.
 
@@ -545,9 +549,14 @@ scratch/           # Experiments — NOT importable, NOT in package.
 
 **Status:** Implemented and deployed (April 2026). All features flag-gated behind `FF_STRUCTURED_OUTPUT`, `FF_SSE_STREAMING`, `FF_JSON_RESPONSE_FORMAT`, `FF_EMBEDDED_QUIZ`. Flags default off; production flags off. Additionally: 3-slide web onboarding intro, WhatsApp welcome with terms acceptance, `/terms` page, conversation persistence, toast/native notifications, DM Serif Display headings in overlays, WhatsApp flow engine (Redis-backed multi-turn lesson browsing). **Teacher country (April 2026):** migration 005 adds `country` on `teachers`; auto-detected from WhatsApp phone prefix on `YES` onboarding (via `country_from_phone()` in `i18n.py`), selectable in the web profile sidebar; injected into LLM prompt via shared `_country_context()` helper (covers blocking `/api/chat` and SSE `/api/chat/stream`). 422 tests, ruff clean.
 
+**Also live (under-credited in earlier phase entries):**
+- **Billing enforcement is wired, not just scaffolded.** `check_usage()` gates `/api/chat` (`api/chat.py:329,462`) and `/webhook/twilio` (`api/webhook.py:149`); `log_usage()` records on success. Free-tier quota actively blocks over-limit teachers with an upgrade message. Paystack and bank-transfer providers exist in `core/billing.py`, `services/billing_service.py`.
+- **Web push notifications.** `GET /api/vapid-key` + `POST /api/push/subscribe` (`api/push.py`), `notify_quiz_submission()` invoked from the homework submit path (`api/homework.py:129`). Teacher receives browser notifications when students submit.
+- **Teacher lesson stats.** `get_teacher_lesson_stats()` powers the profile-page stats card and the WhatsApp `stats` command.
+
 #### User Stories
 
-**US-4.1.1: Structured LLM output**
+**[x] US-4.1.1: Structured LLM output**
 - As a teacher, when I request a lesson, the system returns a structured JSON lesson pack with typed blocks (opener, explain, activity, homework, teacher_notes), each with rich metadata (format, duration, materials, key terms, quiz embedded in homework).
 - Architecture:
   - Model: `src/classgen/core/lesson.py` → `LessonPack` Pydantic model with discriminated union blocks
@@ -557,27 +566,27 @@ scratch/           # Experiments — NOT importable, NOT in package.
   - Storage: `lesson_cache.content` stores JSON string. `homework_codes.lesson_content` stores JSON string. New migration adds `lesson_json jsonb` column or replaces text column.
   - Eliminates: `_has_lesson_blocks()`, `_extract_homework_block()`, `_clean_block_markers_for_pdf()`, `_generate_quiz_questions()` (quiz now embedded in homework block), 4 regex patterns across 3 files
 
-**US-4.1.2: Web adapter — rich lesson cards**
+**[x] US-4.1.2: Web adapter — rich lesson cards**
 - As a teacher using the web chat, when a lesson pack arrives, I see a compact lesson card with the opener quote, block icons (Teach / Play / Homework), and action buttons (PDF, homework code). Tapping a block opens an instant-view overlay with rich formatting (headings, key terms, equations).
 - Architecture:
   - Adapter: `src/classgen/channels/web.py` → `WebAdapter.render(lesson_pack) -> dict` (HTML fragments per block)
   - Frontend: `index.html` → new `renderLessonCard()` function replacing `renderBlock()` regex parsing
   - Endpoint: `POST /api/chat` response gains `blocks: list[dict]` alongside `reply`
 
-**US-4.1.3: WhatsApp adapter — dictation format**
+**[x] US-4.1.3: WhatsApp adapter — dictation format**
 - As a teacher using WhatsApp, when a lesson is generated, I receive a concise summary with block titles, the opener quote, activity format, and homework code link — formatted for reading aloud.
 - Architecture:
   - Adapter: `src/classgen/channels/whatsapp.py` → `WhatsAppAdapter.render(lesson_pack) -> str`
   - Replaces: `_whatsapp_summary()` regex function in current `main.py`
 
-**US-4.1.4: PDF adapter**
+**[x] US-4.1.4: PDF adapter**
 - As a teacher, when I download a lesson PDF, the document renders each block with proper headings, page breaks, and the homework adventure narrative formatted for printing.
 - Architecture:
   - Adapter: `src/classgen/channels/pdf.py` → `PdfAdapter.render(lesson_pack) -> str` (file path)
   - Wraps: `src/classgen/content/pdf_generator.py` with structured input instead of regex-parsed text
   - Eliminates: `block_pattern` regex in `pdf_generator.py`
 
-**US-4.1.5: SSE streaming**
+**[x] US-4.1.5: SSE streaming**
 - As a teacher using the web chat, I see the lesson build block-by-block in ~2 seconds per block instead of waiting 10-20 seconds for the full response.
 - Architecture:
   - Endpoint: `GET /api/chat/stream` → `StreamingResponse` with `text/event-stream`
@@ -591,27 +600,32 @@ scratch/           # Experiments — NOT importable, NOT in package.
 
 **Goal:** Homework evolves from 5 MCQ questions to narrative adventures with real-world tasks, exercise-book formats, and embedded quizzes.
 
-#### User Stories
+**Reality check (April 2026 review):** Most of V4.2 landed quietly under the V4.1 `FF_STRUCTURED_OUTPUT` flag. Server-side: `HomeworkBlock` already carries `narrative`, `tasks`, `format`, `completion`, and embedded `quiz` (`core/models.py:75–85`); `HomeworkTask` has `id/instruction/type/clue/exercise_book_format` (`31–37`); the JSON prompt instructs the LLM to emit them (`content/prompts.py:193–213`); `GET /api/h/{code}` already returns a `homework_structured` payload when `lesson_json` is present (`api/homework.py:62–80`); `TeacherNotesBlock.safety_notes` exists (`models.py:96`). **What's missing is the student-facing UI that consumes this data**, plus the teacher approval endpoint and resolving a format-list mismatch (see US-4.2.1 below).
 
-**US-4.2.1: Homework as narrative adventure**
-- As a teacher, when a lesson is generated, the homework block contains a story-embedded adventure where the student is the main character. Tasks combine real-world observation, calculation, comprehension, and creativity — each producing something written in the exercise book.
-- Architecture:
-  - Model: `src/classgen/core/homework.py` → `HomeworkTask(id, instruction, type, clue, exercise_book_format)`, `AdventureType` enum (detective, expedition, design_challenge, story_mission, relay_puzzle, community_interview)
-  - Prompt: Updated system prompt in `prompts.py` with adventure format examples
-  - Schema: `homework_codes` table → `lesson_json jsonb` replaces or supplements `lesson_content text`
+Re-scoped to two phases:
 
-**US-4.2.2: Adventure homework page**
-- As a student visiting `/h/CODE`, I see the adventure narrative, each task with its exercise-book format guidance, and the supplementary quiz — not just 5 bare MCQ questions.
-- Architecture:
-  - Frontend: `homework.html` redesigned → narrative header, task cards with format icons, quiz section
-  - Endpoint: `GET /api/h/{code}` returns structured homework data from JSON lesson pack
+#### V4.2a — Adventure UI (priority; unblocks existing data)
 
-**US-4.2.3: Teacher feasibility review**
-- As a teacher, before assigning a homework adventure, I can see safety notes and feasibility flags (e.g., "This activity requires visiting a river"). I can approve or request a regeneration.
+**[ ] US-4.2.2-rev: Adventure homework page consumes `homework_structured`**
+- As a student visiting `/h/CODE`, when the lesson was generated with structured output on, I see the adventure narrative, task cards with exercise-book format hints, and the quiz as one section among many — not regex-parsed text + a bare 5-MCQ.
+- Current state: `homework.html:75–82` reads only `data.homework_block` (legacy text) and `data.quiz_questions`, ignoring `data.homework_structured` that the API already ships.
 - Architecture:
-  - Model: `teacher_notes.safety_notes` field in `TeacherNotesBlock`
-  - Endpoint: `POST /api/homework/{code}/approve` (teacher confirms feasibility)
-  - Web UI: approval toggle on the homework instant view
+  - Frontend: redesign `homework.html` → narrative header, task cards, collapsible quiz. Fall back to legacy rendering when `homework_structured` is absent (older lesson codes).
+  - Endpoint: `GET /api/h/{code}` — no change needed
+  - No schema / prompt changes
+
+**[ ] US-4.2.1-rev: Resolve adventure format enum**
+- The prompt advertises 7 format strings (`adventure | investigation | creative | story_problem | detective | game | letter_journal` in `prompts.py:193`); the roadmap's original US-4.2.1 specified a different 6-value enum (`detective | expedition | design_challenge | story_mission | relay_puzzle | community_interview`). Pick one set, lock it as a `Literal[...]` on `HomeworkBlock.format`, and align the prompt. The UI in V4.2a will force this decision.
+
+#### V4.2b — Safety & approval (defer until V4.2a ships)
+
+**[~] US-4.2.3: Teacher feasibility review** (model shipped; endpoint + UI pending)
+- As a teacher, before assigning a homework adventure, I see safety notes surfaced from `TeacherNotesBlock.safety_notes` and can approve or request regeneration.
+- Architecture:
+  - Model: `safety_notes` already on `TeacherNotesBlock` (done)
+  - Endpoint: `POST /api/homework/{code}/approve` (new — `api/homework.py`)
+  - Data: `homework_codes.approved_at` timestamp (new migration)
+  - Web UI: approval toggle on teacher-facing homework instant view
 
 ---
 
@@ -621,7 +635,7 @@ scratch/           # Experiments — NOT importable, NOT in package.
 
 #### User Stories
 
-**US-4.3.1: Progressive student identity (Layer 1)**
+**[ ] US-4.3.1: Progressive student identity (Layer 1)**
 - As a teacher, when my student submits a quiz as "Amina, SS2A", I can see Amina's scores across all my homework codes — without Amina creating an account.
 - Architecture:
   - Model: `src/classgen/core/student.py` → `StudentIdentity(name, class_name, teacher_phone)` with collision detection
@@ -629,20 +643,20 @@ scratch/           # Experiments — NOT importable, NOT in package.
   - Migration: `003_add_students.sql` — create table, update `quiz_submissions` to reference `student_id`
   - Endpoint: `GET /api/teacher/{phone}/students` — list students with cross-homework scores
 
-**US-4.3.2: Student progress view**
+**[ ] US-4.3.2: Student progress view**
 - As a student (or parent), when I visit my progress page, I see my scores across subjects, my adventure completion history, and which topics I struggled with.
 - Architecture:
   - Endpoint: `GET /api/student/{id}/progress` — aggregated scores by subject
   - Frontend: New `progress.html` page
 
-**US-4.3.3: Teacher publishes lesson to community**
+**[ ] US-4.3.3: Teacher publishes lesson to community**
 - As a teacher, I can mark a lesson as "shared" so other teachers can discover and use it. My name, school, and subject are shown. I retain ownership.
 - Architecture:
   - Table: `community_lessons` → `id, homework_code, teacher_phone, subject, class_level, shared_at, rating_avg, use_count`
   - Endpoint: `POST /api/lesson/{code}/share`
   - Data: `src/classgen/data/community.py` — new module
 
-**US-4.3.4: Peer rating and discovery**
+**[ ] US-4.3.4: Peer rating and discovery**
 - As a teacher, I can browse community lessons by subject and class, see ratings and use counts, and use a shared lesson with my class (creating my own homework code from the shared content).
 - Architecture:
   - Endpoint: `GET /api/community/lessons?subject=Biology&class=SS2` — paginated, sorted by rating
@@ -657,7 +671,7 @@ scratch/           # Experiments — NOT importable, NOT in package.
 
 #### User Stories
 
-**US-4.4.1: Teacher verification**
+**[ ] US-4.4.1: Teacher verification**
 - As a teacher, I can add my certification number, school affiliation, and teaching experience to my profile. School admin confirms the affiliation. Verified teachers get a badge and their shared content is prioritized.
 - Architecture:
   - Model: `src/classgen/core/teacher.py` → `TrustLevel` enum (teacher, verified, subject_lead, school_admin, reviewer)
@@ -665,39 +679,39 @@ scratch/           # Experiments — NOT importable, NOT in package.
   - Migration: `004_add_verification.sql`
   - Endpoint: `POST /api/teacher/verify`, `POST /api/school/{slug}/confirm-teacher`
 
-**US-4.4.2: Content flagging and peer review**
+**[ ] US-4.4.2: Content flagging and peer review**
 - As a verified teacher, I can flag a community lesson for inaccuracy, safety concern, or inappropriate content. Flags are reviewed by subject leads (peer teachers with high trust scores), not a central team.
 - Architecture:
   - Table: `content_flags` → `id, lesson_id, flagged_by, reason, status (open/confirmed/dismissed), reviewed_by`
   - Endpoint: `POST /api/community/lessons/{id}/flag`, `POST /api/community/flags/{id}/review`
 
-**US-4.4.3: Community-verified content**
+**[ ] US-4.4.3: Community-verified content**
 - As a teacher browsing community lessons, I can see which lessons are "community verified" — endorsed by multiple certified teachers across different schools.
 - Architecture:
   - Table: `lesson_endorsements` → `lesson_id, teacher_phone, endorsed_at`
   - Logic: Lesson becomes "verified" when endorsed by N verified teachers from M different schools
   - Endpoint: `POST /api/community/lessons/{id}/endorse`
 
-**US-4.4.4: Lesson remix**
+**[ ] US-4.4.4: Lesson remix**
 - As a teacher, I can fork a community-verified lesson, adapt blocks for my context (different opener, localized activity), and publish the remix. The original is credited.
 - Architecture:
   - Table: `community_lessons.forked_from` — nullable reference to parent lesson
   - Endpoint: `POST /api/community/lessons/{id}/remix` → creates new lesson with modified blocks
   - Model: `LessonPack` supports block-level replacement
 
-**US-4.4.5: Teacher analytics dashboard**
+**[ ] US-4.4.5: Teacher analytics dashboard**
 - As a teacher, I see a dashboard with: lessons generated this week/month, student engagement (quiz scores, adventure completion), my hardest topics (where students score lowest), and peer comparison (how my engagement compares to subject average).
 - Architecture:
   - Endpoint: `GET /api/teacher/{phone}/analytics` — aggregated metrics
   - Data: Computed from `homework_codes`, `quiz_submissions`, `lesson_history`, `community_lessons`
 
-**US-4.4.6: School admin analytics**
+**[ ] US-4.4.6: School admin analytics**
 - As a school admin, I see: which teachers are active, subject coverage gaps (topics not taught with N weeks left in term), student performance trends, and homework completion rates.
 - Architecture:
   - Endpoint: `GET /api/school/{slug}/analytics` — anonymized student data, teacher activity
   - Data: Aggregated from teacher-scoped data within the school
 
-**US-4.4.7: Anonymized regional analytics**
+**[ ] US-4.4.7: Anonymized regional analytics**
 - As a ministry/curriculum body, I see anonymized aggregate data: topic difficulty nationwide (which topics have lowest scores), format effectiveness (adventure vs quiz-only completion rates), regional patterns, and novel teaching approaches emerging from the community.
 - Architecture:
   - Endpoint: `GET /api/analytics/regional?country=NG&region=Lagos` — no student PII, no teacher names
@@ -735,16 +749,16 @@ Every user story traces to: schema changes → new/modified modules → endpoint
 
 ## Migration Sequence
 
-| # | File | Phase | Description |
-|---|---|---|---|
-| 001 | `001_baseline.sql` | V3.1 | Marker for init.sql schema (applied) |
-| 002 | `002_add_updated_at.sql` | V3.1 | updated_at columns + triggers (applied) |
-| 003 | `003_add_lesson_json.sql` | V4.1 | Add `lesson_json jsonb` to `homework_codes` and `lesson_cache` (applied) |
-| 004 | `004_add_onboarded_at.sql` | V4.1 | Onboarding consent timestamp on `teachers` (applied) |
-| 005 | `005_add_country.sql` | V4.1 | Teacher country for curriculum-aware prompt injection (applied) |
-| 006 | `006_add_students.sql` | V4.3 | Create `students` table. Add `student_id` to `quiz_submissions`. |
-| 007 | `007_add_community.sql` | V4.3 | Create `community_lessons`, indexes on subject/class/rating. |
-| 008 | `008_add_verification.sql` | V4.4 | Create `teacher_verification`, `content_flags`, `lesson_endorsements`. |
+| # | Status | File | Phase | Description |
+|---|---|---|---|---|
+| 001 | [x] | `001_baseline.sql` | V3.1 | Marker for init.sql schema |
+| 002 | [x] | `002_add_updated_at.sql` | V3.1 | updated_at columns + triggers |
+| 003 | [x] | `003_add_lesson_json.sql` | V4.1 | Add `lesson_json jsonb` to `homework_codes` and `lesson_cache` |
+| 004 | [x] | `004_add_onboarded_at.sql` | V4.1 | Onboarding consent timestamp on `teachers` |
+| 005 | [x] | `005_add_country.sql` | V4.1 | Teacher country for curriculum-aware prompt injection |
+| 006 | [ ] | `006_add_students.sql` | V4.3 | Create `students` table. Add `student_id` to `quiz_submissions`. |
+| 007 | [ ] | `007_add_community.sql` | V4.3 | Create `community_lessons`, indexes on subject/class/rating. |
+| 008 | [ ] | `008_add_verification.sql` | V4.4 | Create `teacher_verification`, `content_flags`, `lesson_endorsements`. |
 
 ---
 
