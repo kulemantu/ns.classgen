@@ -1,5 +1,7 @@
 """Tests for the onboarding system — web intro, terms page, WhatsApp welcome, data layer."""
 
+import re
+from functools import lru_cache
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
@@ -9,6 +11,23 @@ from classgen.content.onboarding import ONBOARDING, whatsapp_welcome
 from classgen.data.teachers import _mem_teachers, is_onboarded, mark_onboarded
 
 client = TestClient(app)
+
+
+@lru_cache(maxsize=1)
+def _served():
+    """HTML shell + linked CSS + linked JS bundle. After the V4.1 asset
+    refactor, intro-related JS lives in /assets/app.<hash>.js."""
+    html = client.get("/").text
+    css_match = re.search(r"/assets/app\.[a-f0-9]{8}\.css", html)
+    js_match = re.search(r"/assets/app\.[a-f0-9]{8}\.js", html)
+    assert css_match and js_match, "asset URLs missing from HTML"
+    return (
+        html
+        + "\n"
+        + client.get(css_match.group()).text
+        + "\n"
+        + client.get(js_match.group()).text
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -133,10 +152,9 @@ class TestIntroOverlay:
 
     def test_intro_cta_labels_match_slide_count(self):
         """Pin: ctaLabels array length matches slide count to prevent off-by-one drift."""
-        response = client.get("/")
         assert (
             "['See How It Works', 'Next', 'Next', 'Accept & Start Teaching']"
-            in response.text
+            in _served()
         )
 
     def test_intro_skip_button(self):
@@ -152,17 +170,15 @@ class TestIntroOverlay:
         assert 'href="/terms"' in response.text
 
     def test_intro_localStorage_key(self):
-        response = client.get("/")
-        assert "classgen_intro_seen" in response.text
+        assert "classgen_intro_seen" in _served()
 
     def test_intro_content_object(self):
-        response = client.get("/")
-        assert "INTRO_CONTENT" in response.text
+        assert "INTRO_CONTENT" in _served()
 
     def test_intro_touch_support(self):
-        response = client.get("/")
-        assert "touchstart" in response.text
-        assert "touchend" in response.text
+        served = _served()
+        assert "touchstart" in served
+        assert "touchend" in served
 
     def test_intro_brand_name(self):
         response = client.get("/")
@@ -185,15 +201,14 @@ class TestIntroOverlay:
 
     def test_settings_has_reset_intro(self):
         """Settings panel exposes a button to re-show the onboarding without clearing chats."""
-        response = client.get("/")
-        html = response.text
+        served = _served()
         # Button + handler + localStorage clear
-        assert 'onclick="resetIntro()"' in html
-        assert "function resetIntro()" in html
-        assert "classgen_intro_seen" in html
-        assert "Reset intro" in html
-        assert "Show intro on next refresh." in html
-        assert "DM Serif Display" in response.text
+        assert 'onclick="resetIntro()"' in served
+        assert "function resetIntro()" in served
+        assert "classgen_intro_seen" in served
+        assert "Reset intro" in served
+        assert "Show intro on next refresh." in served
+        assert "DM Serif Display" in served
 
 
 # ---------------------------------------------------------------------------

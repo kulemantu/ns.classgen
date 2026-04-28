@@ -9,11 +9,32 @@ Validates that:
 - The renderAiResponse / restoreConversation / notifyLesson functions exist
 """
 
+import re
+from functools import lru_cache
+
 from fastapi.testclient import TestClient
 
 from classgen.api.app import app
 
 client = TestClient(app)
+
+
+@lru_cache(maxsize=1)
+def _served():
+    """HTML shell + linked CSS bundle + linked JS bundle, as effectively
+    served to the browser. After the V4.1 asset-extraction refactor, content
+    that used to be inline in index.html now lives in /assets/app.<hash>.{css,js}."""
+    html = client.get("/").text
+    css_match = re.search(r"/assets/app\.[a-f0-9]{8}\.css", html)
+    js_match = re.search(r"/assets/app\.[a-f0-9]{8}\.js", html)
+    assert css_match and js_match, "asset URLs missing from HTML"
+    return (
+        html
+        + "\n"
+        + client.get(css_match.group()).text
+        + "\n"
+        + client.get(js_match.group()).text
+    )
 
 
 class TestHeaderNotificationRemoved:
@@ -36,86 +57,72 @@ class TestPushToggleInSettings:
     """Push notification toggle lives in the settings sidebar."""
 
     def test_push_toggle_in_sidebar(self):
-        response = client.get("/")
-        html = response.text
-        assert "push-toggle" in html
-        assert "Push notifications" in html
-        assert "togglePush()" in html
+        served = _served()
+        assert "push-toggle" in served
+        assert "Push notifications" in served
+        assert "togglePush()" in served
 
 
 class TestToastElement:
     """Toast notification element and styles are present."""
 
     def test_toast_div_exists(self):
-        response = client.get("/")
-        assert 'id="toast"' in response.text
+        # The toast <div> itself stays in the HTML body.
+        assert 'id="toast"' in client.get("/").text
 
     def test_toast_dark_background(self):
         """Toast uses dark slate background, not green."""
-        response = client.get("/")
-        assert "#1e293b" in response.text
+        assert "#1e293b" in _served()
 
     def test_toast_dark_mode_variant(self):
-        response = client.get("/")
-        assert '[data-theme="dark"] .toast' in response.text
+        assert '[data-theme="dark"] .toast' in _served()
 
     def test_toast_high_z_index(self):
-        response = client.get("/")
-        assert "z-index: 9999" in response.text
+        assert "z-index: 9999" in _served()
 
 
 class TestFrontendFunctions:
-    """Key JS functions exist in the served HTML."""
+    """Key JS functions exist in the served bundle."""
 
     def test_show_toast(self):
-        response = client.get("/")
-        assert "function showToast(" in response.text
+        assert "function showToast(" in _served()
 
     def test_notify_lesson(self):
-        response = client.get("/")
-        assert "function notifyLesson(" in response.text
+        assert "function notifyLesson(" in _served()
 
     def test_render_ai_response(self):
-        response = client.get("/")
-        assert "function renderAiResponse(" in response.text
+        assert "function renderAiResponse(" in _served()
 
     def test_save_conversation(self):
-        response = client.get("/")
-        assert "function saveConversation(" in response.text
+        assert "function saveConversation(" in _served()
 
     def test_restore_conversation(self):
-        response = client.get("/")
-        assert "function restoreConversation(" in response.text
+        assert "function restoreConversation(" in _served()
 
     def test_humanize(self):
-        response = client.get("/")
-        assert "function humanize(" in response.text
+        assert "function humanize(" in _served()
 
     def test_format_details(self):
-        response = client.get("/")
-        assert "function formatDetails(" in response.text
+        assert "function formatDetails(" in _served()
 
 
 class TestLocalStorageKeys:
     """The JS references the expected localStorage keys."""
 
     def test_chat_history_key(self):
-        response = client.get("/")
-        assert "classgen_chat_history" in response.text
+        assert "classgen_chat_history" in _served()
 
     def test_thread_id_key(self):
-        response = client.get("/")
-        assert "classgen_thread_id" in response.text
+        assert "classgen_thread_id" in _served()
 
 
 class TestNativeNotificationGuard:
     """Native notification is guarded by permission check."""
 
     def test_permission_check(self):
-        response = client.get("/")
-        html = response.text
-        assert "Notification.permission" in html
-        assert "'granted'" in html
+        served = _served()
+        assert "Notification.permission" in served
+        assert "'granted'" in served
 
 
 class TestConfigEndpointStillWorks:

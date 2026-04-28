@@ -5,6 +5,7 @@ where the functions are actually USED (the api routers), not where they're defin
 """
 
 import os
+import re
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
@@ -45,6 +46,36 @@ def test_read_root():
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert "ClassGen" in response.text
+
+
+def test_root_references_hashed_assets():
+    body = client.get("/").text
+    assert re.search(r'href="/assets/app\.[a-f0-9]{8}\.css"', body)
+    assert re.search(r'src="/assets/app\.[a-f0-9]{8}\.js"', body)
+    # Only the pre-paint theme + the deferred app.js
+    assert body.count("<script") <= 2
+    # The big CSS bundle must not be inline; only the tiny FOUT shield is allowed.
+    # Theme tokens (and the bulk of the rules) live in /assets/app.<hash>.css.
+    assert ":root {" not in body
+    inline_css = re.findall(r"<style[^>]*>(.*?)</style>", body, flags=re.DOTALL)
+    assert all(len(s) < 1024 for s in inline_css), "inline <style> blocks should be small (FOUT shield only)"
+
+
+def test_root_cache_headers():
+    response = client.get("/")
+    assert response.headers["cache-control"] == "no-cache, must-revalidate"
+
+
+def test_assets_cache_headers_and_hash_validation():
+    body = client.get("/").text
+    css_match = re.search(r"/assets/app\.[a-f0-9]{8}\.css", body)
+    js_match = re.search(r"/assets/app\.[a-f0-9]{8}\.js", body)
+    assert css_match and js_match
+    for url in (css_match.group(), js_match.group()):
+        r = client.get(url)
+        assert r.status_code == 200
+        assert r.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert client.get("/assets/app.deadbeef.css").status_code == 404
 
 
 def test_health():
