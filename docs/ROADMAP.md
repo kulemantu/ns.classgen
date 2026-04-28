@@ -371,6 +371,9 @@ Changes:
 - [x] REST endpoints: `GET/POST/PATCH /api/teacher/profile`, `POST/DELETE /api/teacher/classes`, `DELETE /api/teacher/history`
 - [x] Test coverage for all new endpoints (9 tests)
 - [x] **Country at registration (April 2026)** — registration form captures name + country together, mirroring the public profile's `name · country` subtitle (`templates/profile.html`). Country is required; uses the same region-grouped dropdown as the profile sidebar. First lesson now generates with country context instead of waiting for the teacher to discover the sidebar field. `TeacherRegisterRequest.country` is API-optional but UI-required (WhatsApp registrants get country auto-detected from phone, so the API stays tolerant).
+- [x] **Country dropdown polish (April 2026)** — flag emoji per supported country, native `<optgroup>` grouping by region (East Africa → West Africa → Southern Africa → Other; alphabetical within each), 14-market English-speaking scope. Backed by `supported_countries` reference table (migration 006) with in-memory fallback that mirrors the Python constants (`COUNTRY_REGIONS`, `COUNTRY_FLAGS`); test pins phone-auto-detect ⊆ dropdown invariant.
+- [x] **Onboarding polish + profile preview slide (April 2026)** — first-visit web intro grew from 3 slides to 4. New slide 3 shows a centered "profile content preview" card (name, country, stats, class badges, sample homework codes) so teachers see what the dashboard looks like populated. Marquee on slide 2 readability bumped (font 0.88rem · weight 600 · 28s animation · pause-on-hover · `prefers-reduced-motion`). Bottom-nav spacing fixed (gap 18px + safe-area-inset). Mobile Chrome scrollbar jiggle fixed via `100dvh` on the overlay. JS extracts `LAST_SLIDE` constant to replace four magic-2s. Marquee examples gain country flag emojis (`🇳🇬 · SS2, Nigeria, …`) so teachers see "we know your country" before registering.
+- [x] **Reset-intro setting (April 2026)** — Settings → Intro section adds a "Reset intro" button + "Show intro on next refresh." helper. Clears `localStorage.classgen_intro_seen` and confirms via toast; intro re-shows on the next page load. Lets a teacher demo onboarding to a colleague without clearing browser cache.
 
 Technical:
 - threadId serves as the `phone` field in the `teachers` table -- no schema changes needed
@@ -550,7 +553,7 @@ scratch/           # Experiments — NOT importable, NOT in package.
 
 **Goal:** LLM returns structured JSON instead of text blocks. Each channel renders the same data differently. SSE streaming eliminates the dead wait on web.
 
-**Status:** Implemented and deployed (April 2026). All features flag-gated behind `FF_STRUCTURED_OUTPUT`, `FF_SSE_STREAMING`, `FF_JSON_RESPONSE_FORMAT`, `FF_EMBEDDED_QUIZ`. Flags default off; production flags off. Additionally: 3-slide web onboarding intro, WhatsApp welcome with terms acceptance, `/terms` page, conversation persistence, toast/native notifications, DM Serif Display headings in overlays, WhatsApp flow engine (Redis-backed multi-turn lesson browsing). **Teacher country (April 2026):** migration 005 adds `country` on `teachers`; auto-detected from WhatsApp phone prefix on `YES` onboarding (via `country_from_phone()` in `i18n.py`), selectable in the web profile sidebar; injected into LLM prompt via shared `_country_context()` helper (covers blocking `/api/chat` and SSE `/api/chat/stream`). 422 tests, ruff clean.
+**Status:** Implemented and deployed (April 2026). All features flag-gated behind `FF_STRUCTURED_OUTPUT`, `FF_SSE_STREAMING`, `FF_JSON_RESPONSE_FORMAT`, `FF_EMBEDDED_QUIZ`. Flags default off; production flags off. Additionally: 4-slide web onboarding intro (Welcome → How → Profile preview → Accept), WhatsApp welcome with terms acceptance, `/terms` page, conversation persistence, toast/native notifications, DM Serif Display headings in overlays, WhatsApp flow engine (Redis-backed multi-turn lesson browsing). **Teacher country (April 2026):** migration 005 adds `country` on `teachers`; migration 006 adds `supported_countries` reference table seeded with 14 English-speaking markets grouped by region. Country auto-detected from WhatsApp phone prefix on `YES` onboarding (via `country_from_phone()` in `i18n.py`), required at web registration via region-grouped dropdown with flag emojis; injected into LLM prompt via shared `_country_context()` helper (covers blocking `/api/chat` and SSE `/api/chat/stream`). 452 tests, ruff clean.
 
 **Also live (under-credited in earlier phase entries):**
 - **Billing enforcement is wired, not just scaffolded.** `check_usage()` gates `/api/chat` (`api/chat.py:329,462`) and `/webhook/twilio` (`api/webhook.py:149`); `log_usage()` records on success. Free-tier quota actively blocks over-limit teachers with an upgrade message. Paystack and bank-transfer providers exist in `core/billing.py`, `services/billing_service.py`.
@@ -636,6 +639,8 @@ Re-scoped to two phases:
 
 **Goal:** Students gain progressive identity (teacher-scoped first). Teachers can publish lessons to the community. Peer rating begins.
 
+**The community flywheel (why this phase exists).** Teachers publish lessons → peers discover and use them → students engage via two signals: **(a) completion** (did they finish the homework?) and **(b) rating** (1–5 stars + reaction after submitting, US-4.3.8) → those signals plus teacher reflections (US-4.3.6) and peer endorsements aggregate into a teacher **reputation score** (US-4.4.10) → discovery ranks by a blend of teacher judgment and earned reputation → the best content surfaces, the strongest teachers earn visibility and subject-lead eligibility. Co-moderation, co-discussion (US-4.4.8), and subject-lead curation (US-4.4.9) sit on top of this spine. The goal is not a content library but a **self-improving crowd-curated curriculum**, grounded in teachers' pedagogical judgment and validated by students' observed engagement.
+
 #### User Stories
 
 **[ ] US-4.3.1: Progressive student identity (Layer 1)**
@@ -665,6 +670,41 @@ Re-scoped to two phases:
   - Endpoint: `GET /api/community/lessons?subject=Biology&class=SS2` — paginated, sorted by rating
   - Endpoint: `POST /api/community/lessons/{id}/rate` — 1-5 star rating
   - Endpoint: `POST /api/community/lessons/{id}/use` — fork lesson, create new homework code
+
+**[ ] US-4.3.5: Subject/class cohort directory**
+- As a teacher in Nigeria teaching SS2 Biology, when I open the community page I see a feed of other teachers teaching the same subject/class in the same country/region this week, with links to the lessons they generated. Turns the platform from a content library into a peer cohort — "I am not alone teaching this topic this week."
+- Architecture:
+  - Endpoint: `GET /api/community/cohort?subject=Biology&class=SS2&country=Nigeria&week=current`
+  - Data: reads existing `lesson_history` joined with `teachers` — no schema change
+  - Frontend: cohort panel on community discovery page
+  - Privacy: only teachers who have opted into community publishing are listed (reuses US-4.3.3 share flag); lesson codes link to the community listing, never expose raw homework links
+
+**[ ] US-4.3.6: Teacher reflection cards (qualitative signal)**
+- As a teacher, after I use a shared community lesson with my class I'm prompted (one day later) to leave a short reflection — *what worked*, *what I changed*, *my class's reaction*. Reflections appear on the community lesson card beneath the star rating, giving future users the *why*, not just the *how many stars*. This is the qualitative signal that turns ratings into a conversation.
+- Architecture:
+  - Table: `lesson_reflections` → `id, community_lesson_id, teacher_phone, what_worked text, what_changed text, class_reaction text, created_at`
+  - Migration: `009_add_lesson_reflections.sql`
+  - Endpoints: `POST /api/community/lessons/{id}/reflect`, `GET /api/community/lessons/{id}/reflections` (paginated, recent first)
+  - UI: prompt delivered via web push + WhatsApp 24h after lesson generation when the teacher forked a community lesson (reuses V4.1 push infra); reflections shown inline on the community lesson card
+
+**[ ] US-4.3.7: Student engagement on community lesson cards (quantitative signal)**
+- As a teacher browsing community lessons, each card shows the aggregate student signal — submission count, completion rate, average quiz score, **and the average student rating from US-4.3.8** — across every class that has ever used this lesson. The quantitative signal sits next to the qualitative reflections, so I can judge a lesson on both teacher craft and observed student effect.
+- Two distinct rating streams feed this card (do not conflate):
+  - **Teacher → lesson** star rating (US-4.3.4): peer craft judgment. "Would I teach this?"
+  - **Student → homework** star + reaction (US-4.3.8): the learner's voice. "Did this land?"
+- Architecture:
+  - Endpoint: `GET /api/community/lessons` response gains `engagement: {submissions, completion_rate, avg_score, avg_student_rating, reaction_histogram}` computed across all `homework_codes` forked from the same `community_lesson_id`
+  - Data: joins `community_lessons` ← `homework_codes` ← `quiz_submissions` + `homework_ratings` — no schema change (reads the new table US-4.3.8 introduces)
+  - Ranking: discovery sort gains `?sort=engagement` and `?sort=student_rating`; default remains `rating` until data volume justifies a composite
+
+**[ ] US-4.3.8: Student rates homework after submission**
+- As a student, after submitting a homework quiz I can leave a quick 1–5 star rating and optionally tap a reaction chip (`fun` / `hard` / `confusing` / `boring` / `loved it`). Anonymous — no name required, distinct from the quiz submission identity. This is the **student's voice** returning to the teacher and, via US-4.3.7, to the community.
+- Architecture:
+  - Table: `homework_ratings` → `id, homework_code, rating int (1-5), reaction text nullable, created_at` (no student identity — pure signal, avoids coercion)
+  - Migration: `013_add_homework_ratings.sql`
+  - Endpoint: `POST /h/{code}/rate` body `{ rating, reaction? }`
+  - Frontend: star widget + reaction chips appear on the submit-confirmation card in `homework.html`; optional skip
+  - Aggregation: `avg_student_rating` per `homework_code` → bubbled up per `community_lesson_id` (see US-4.3.7) and per teacher (see US-4.4.10)
 
 ---
 
@@ -720,6 +760,74 @@ Re-scoped to two phases:
   - Endpoint: `GET /api/analytics/regional?country=NG&region=Lagos` — no student PII, no teacher names
   - Data: Aggregated from `lesson_history`, `quiz_submissions`, `community_lessons`, grouped by region/subject/class
   - Model: Teacher is the anchor entity — `Teacher 454F32 teaches 2 subjects, 55 students, avg 72%`
+
+**[ ] US-4.4.8: Block-level comments on shared lessons (co-discussion)**
+- As a teacher viewing a community-verified lesson, I can leave a comment on any individual block ("I replaced the analogy with a farming one, my students got it faster"). Comments thread inline on each block card. This is **co-discussion, not co-editing** — cheapest way to capture colleague-to-colleague know-how without the coordination cost of shared drafts.
+- Architecture:
+  - Table: `lesson_block_comments` → `id, community_lesson_id, block_type (opener|explain|activity|homework|teacher_notes), teacher_phone, comment_text, parent_comment_id nullable, created_at`
+  - Migration: `010_add_lesson_block_comments.sql`
+  - Endpoints: `POST /api/community/lessons/{id}/comments` (body includes `block_type`), `GET /api/community/lessons/{id}/comments?block=opener`
+  - UI: comment count badge on each block card on community lesson page; click expands thread with reply form
+
+**[ ] US-4.4.9: Subject-lead weekly picks (editorial + in-community promotion)**
+- As a Subject Lead (verified teacher with high trust in a subject, per US-4.4.1 `TrustLevel`), I curate a weekly shortlist of 3–5 standout lessons per subject/class I lead. My picks appear in a banner atop the community discovery feed for that subject, with my note on why each was picked. This adds editorial narrative and a promotion channel teachers can trust — no paid boost, no algorithm-only ranking.
+- Architecture:
+  - Table: `weekly_picks` → `id, curator_phone, subject, class_level, week_start_date, community_lesson_id, curator_note text, created_at`
+  - Migration: `011_add_weekly_picks.sql`
+  - Endpoints: `POST /api/community/picks` (curator-only), `GET /api/community/picks?subject=Biology&class=SS2&week=current`
+  - Permissions: enforced at endpoint via `TrustLevel >= subject_lead` check
+  - UI: "This week's picks from {curator}" banner atop community discovery; curator's name links to their public profile
+
+**[ ] US-4.4.10: Teacher reputation score (earned, not credentialed)**
+- As a teacher, my public profile shows a **reputation score** I earn from: (a) my students actually completing the homework I assign (`quiz_submissions`), (b) the star ratings those students give after completing (US-4.3.8 `homework_ratings`), (c) other teachers remixing my shared lessons (US-4.4.4), and (d) peer endorsements (US-4.4.3). Reputation is **earned**, complementary to `TrustLevel` (US-4.4.1) which is credentialed. Reputation feeds community discovery ranking and subject-lead eligibility.
+- The score is **transparent**: the profile shows the breakdown — "Students completed: 1,247 · Avg student rating: 4.3 · Remixes of my lessons: 18 · Peer endorsements: 9" — not an opaque number. Teachers trust what they can audit.
+- Architecture:
+  - Derived (not stored) — computed from existing and V4.3/V4.4 tables: `quiz_submissions`, `homework_ratings`, `community_lessons.use_count` / `forked_from`, `lesson_endorsements`
+  - Endpoint: `GET /api/teacher/{phone}/reputation` returns `{ completions, avg_student_rating, remix_count, endorsement_count, composite }`
+  - Formula (v1, tunable, documented in `services/reputation.py`):
+    `composite = completions + Σ(student_ratings) + 2·remix_count + 3·endorsement_count`
+  - Attribution on remixes: forking teacher B gets primary credit (they assigned it to their class); original teacher A gets smaller upstream credit per completion on forks — open-source-style chain attribution, `upstream_weight = 0.25`
+  - UI: reputation card on public profile `/t/{slug}`, next to `TrustLevel` badge
+  - Ranking: US-4.3.7's `?sort=engagement` becomes reputation-aware once this ships; subject-lead eligibility (US-4.4.1) gains an explicit reputation threshold rather than the current implicit "high trust score"
+  - Safeguards: rate-limited signals per student per homework (one rating only); spike detection flags suspicious reputation growth for subject-lead review
+
+---
+
+### V4.5 — Engagement & Generation Delight (deferred)
+
+**Goal:** Make lessons **fun** — on both sides of the content. V4.2 ships the adventure *data*; V4.5 ships the UX that carries the metaphor through to students and the generation levers that make authoring feel playful to teachers. Not required for the community flywheel (V4.3/V4.4) to function; multiplies engagement once the flywheel is running.
+
+**[ ] US-4.5.1: Homework streaks + progression character**
+- As a student with a persistent identity in my teacher's class (US-4.3.1), my homework page shows a streak counter ("5 homeworks in a row"), a simple character that evolves with each completion, and encouraging copy when I break or recover a streak. Teacher-toggleable per class.
+- Architecture:
+  - Data: derived from `quiz_submissions` grouped by `student_id` — no schema change
+  - Frontend: streak widget + progression art on `/h/CODE`
+  - Setting: `teacher.class_settings.show_streak` (per class) in `teachers` classes jsonb
+
+**[ ] US-4.5.2: Serialized adventures**
+- As a teacher generating multiple lessons for the same class/subject within a term, I can opt into "serialized mode" — adventure narratives carry recurring characters, settings, and a running arc across lessons. Students encounter the same detective team or expedition crew across weeks.
+- Architecture:
+  - Schema: add `adventure_state jsonb` (characters, setting, running_arc) on `lesson_history`
+  - Migration: `012_add_adventure_state.sql`
+  - Prompt: generator conditions on the prior lesson's `adventure_state` for the same (teacher, class, subject) tuple
+  - Endpoint: `POST /api/teacher/class/{slug}/serialize` to opt in / opt out
+
+**[ ] US-4.5.3: Teacher mood dial on generation**
+- As a teacher, when requesting a lesson I can set mood parameters — `funnier`, `more_debate`, `more_kinesthetic`, `more_story`, `more_visual`. The generator conditions its prompt on these tokens. Small lever, big perceived-quality lift because teachers feel they're *directing*, not just receiving.
+- Architecture:
+  - Schema: `/api/chat` + `/api/chat/stream` request gain optional `mood: list[str]` (allow-listed values)
+  - Prompt: `CLASSGEN_JSON_SYSTEM_PROMPT` appends "Lean into: {moods}" when set
+  - Frontend: pill selector in composer (multi-select)
+  - WhatsApp: `/mood funnier kinesthetic` command stored on teacher profile as default mood
+
+**[ ] US-4.5.4: Block-level regeneration with critique**
+- As a teacher, after receiving a lesson I can select any block and request a regeneration with a free-text critique — "rewrite the opener, my class found it boring"; "make the activity work for 50 students not 20". Other blocks are preserved. Turns generation into a conversation, not a one-shot.
+- Architecture:
+  - Endpoint: `POST /api/chat/regenerate-block` with `thread_id`, `lesson_code`, `block_type`, `critique`
+  - Service: focused single-block prompt seeded with full lesson context for coherence
+  - Frontend: "Rewrite block" button on each block card in web chat
+  - WhatsApp: `rewrite opener: too boring` command (flow-engine dispatch)
+  - Data: updates `lesson_json` in place; logs each regen with block_type + critique for future prompt tuning
 
 ---
 
@@ -777,6 +885,10 @@ Every user story traces to: schema changes → new/modified modules → endpoint
 | US-4.3.2 | None | `progress.html` | `GET /api/student/{id}/progress` |
 | US-4.3.3 | `community_lessons` (new) | `data/community.py` | `POST /api/lesson/{code}/share` |
 | US-4.3.4 | `community_lessons` | `data/community.py` | `GET /api/community/lessons`, rate, use |
+| US-4.3.5 | None (reads existing) | `api/community.py`, `services/community.py` | `GET /api/community/cohort` |
+| US-4.3.6 | `lesson_reflections` (new) | `data/community.py`, `api/community.py` | `POST/GET /api/community/lessons/{id}/reflect(ions)` |
+| US-4.3.7 | None (reads existing + `homework_ratings`) | `services/community.py` | `GET /api/community/lessons` (engagement payload + `?sort=engagement` / `?sort=student_rating`) |
+| US-4.3.8 | `homework_ratings` (new) | `data/homework.py`, `api/homework.py`, `homework.html` | `POST /h/{code}/rate` |
 | US-4.4.1 | `teacher_verification` (new) | `core/teacher.py`, `data/teachers.py` | `POST /api/teacher/verify` |
 | US-4.4.2 | `content_flags` (new) | `data/community.py` | `POST /api/.../flag`, `.../review` |
 | US-4.4.3 | `lesson_endorsements` (new) | `data/community.py` | `POST /api/.../endorse` |
@@ -784,6 +896,13 @@ Every user story traces to: schema changes → new/modified modules → endpoint
 | US-4.4.5 | None (reads existing) | `services/analytics.py` | `GET /api/teacher/{phone}/analytics` |
 | US-4.4.6 | None (reads existing) | `services/analytics.py` | `GET /api/school/{slug}/analytics` |
 | US-4.4.7 | None (reads existing) | `services/analytics.py` | `GET /api/analytics/regional` |
+| US-4.4.8 | `lesson_block_comments` (new) | `data/community.py`, `api/community.py` | `POST/GET /api/community/lessons/{id}/comments` |
+| US-4.4.9 | `weekly_picks` (new) | `data/community.py`, `api/community.py` | `POST/GET /api/community/picks` |
+| US-4.4.10 | None (derived from existing + `homework_ratings`) | `services/reputation.py` (new), `api/teacher.py`, `/t/{slug}` template | `GET /api/teacher/{phone}/reputation` |
+| US-4.5.1 | None (reads existing) | `api/homework.py`, `homework.html` | `GET /api/h/{code}` (streak payload) |
+| US-4.5.2 | `lesson_history.adventure_state` (add col) | `services/llm.py`, `content/prompts.py`, `api/teacher.py` | `POST /api/teacher/class/{slug}/serialize` |
+| US-4.5.3 | None | `services/llm.py`, `api/chat.py`, `api/webhook.py`, `content/prompts.py` | `POST /api/chat` (+mood field) |
+| US-4.5.4 | None (updates existing `lesson_json`) | `services/llm.py`, `api/chat.py` | `POST /api/chat/regenerate-block` |
 | US-5.1 | `teachers.locale` (add col) | `i18n/messages/{locale}.json` (new), `i18n.py` (t() helper), all UI surfaces (`channels/`, `commands/`, `index.html`, `terms.html`) | `GET /api/i18n/{locale}`, `PATCH /api/teacher/locale` |
 | US-5.2 | `supported_countries` (insert rows; new "North Africa" region) | `i18n.py` (`COUNTRY_REGIONS`, `COUNTRY_FLAGS`, `PHONE_COUNTRIES`), seed migration | `GET /api/teacher/countries` (no shape change) |
 
@@ -800,6 +919,11 @@ Every user story traces to: schema changes → new/modified modules → endpoint
 | 007 | [ ] | `007_add_students.sql` | V4.3 | Create `students` table. Add `student_id` to `quiz_submissions`. |
 | 008 | [ ] | `008_add_community.sql` | V4.3 | Create `community_lessons`, indexes on subject/class/rating. |
 | 009 | [ ] | `009_add_verification.sql` | V4.4 | Create `teacher_verification`, `content_flags`, `lesson_endorsements`. |
+| 010 | [ ] | `010_add_lesson_reflections.sql` | V4.3 | Create `lesson_reflections` (what_worked / what_changed / class_reaction per community lesson). |
+| 011 | [ ] | `011_add_lesson_block_comments.sql` | V4.4 | Create `lesson_block_comments` for co-discussion on shared lessons. |
+| 012 | [ ] | `012_add_weekly_picks.sql` | V4.4 | Create `weekly_picks` for subject-lead editorial curation. |
+| 013 | [ ] | `013_add_adventure_state.sql` | V4.5 | Add `adventure_state jsonb` to `lesson_history` for serialized adventures. |
+| 014 | [ ] | `014_add_homework_ratings.sql` | V4.3 | Create `homework_ratings` (anonymous 1-5 star + reaction per submission) — feeds reputation + community cards. |
 | 015 | [ ] | `015_add_teacher_locale.sql` | V5 | Add `locale text NOT NULL DEFAULT 'en'` to `teachers` for UI translation. |
 | 016 | [ ] | `016_seed_v5_countries.sql` | V5 | Extend `supported_countries` with French/Portuguese/Arabic markets + new "North Africa" region. |
 
@@ -813,15 +937,28 @@ V4.0  Restructure to src/classgen/         ✅ DONE (April 2026)
 V4.1  Structured output + adapters + SSE   ✅ DONE (April 2026, flag-gated)
   ↓
 V4.2  Adventure homework                   ← NEXT: content quality leap
+       (V4.2a — adventure UI priority; V4.2b — approval flow deferred)
   ↓
 V4.3  Student identity + community         ← network effects begin
+       (cohort directory, teacher reflections = qualitative signal;
+        student completion + student rating = quantitative signal,
+        both aggregated on community lesson cards)
   ↓
 V4.4  Trust network + analytics            ← platform intelligence
+       (block-level comments = co-discussion; subject-lead picks =
+        editorial narrative + in-community promotion; teacher
+        reputation = earned score from student engagement + ratings
+        + remixes + endorsements, feeds ranking + subject-lead gate)
+  ↓
+V4.5  Engagement & generation delight      ← fun layer (deferred)
+       (streaks, serialized adventures, mood dial, block regen)
   ↓
 V5    Internationalization & market expansion ← unlock non-English markets
        (US-5.1 UI translation infra → US-5.2 French/Portuguese/Arabic
         markets; demos showing real interest)
 ```
+
+**Dependencies between V4.3 / V4.4 / V4.5.** V4.3 ships the flywheel spine; V4.4 adds trust, moderation, editorial, and co-discussion on top; V4.5 can slot in at any point once structured output is on in production (it reads the same data). Some V4.5 stories (US-4.5.1 streaks) depend on V4.3.1 student identity.
 
 **V5 is independent of V4.2–4.5.** It can begin in parallel as soon as the team has bandwidth — none of the V4 features assume English. The strict ordering inside V5 is US-5.1 before US-5.2 (translation infra before adding markets that depend on it).
 
