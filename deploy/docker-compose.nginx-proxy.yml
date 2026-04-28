@@ -27,6 +27,13 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.prod}@db:5432/classgen
       - APP_ROOT=/app
+      # V4.1 output UX flags — structured JSON lesson packs, embedded quiz
+      # (no second LLM call), JSON response_format, SSE streaming. SSE is
+      # dormant until the web frontend is wired to /api/chat/stream.
+      - FF_STRUCTURED_OUTPUT=true
+      - FF_JSON_RESPONSE_FORMAT=true
+      - FF_EMBEDDED_QUIZ=true
+      - FF_SSE_STREAMING=true
     depends_on:
       db:
         condition: service_healthy
