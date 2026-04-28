@@ -25,6 +25,7 @@ class PushSubscription(BaseModel):
 class TeacherRegisterRequest(BaseModel):
     thread_id: str = Field(..., min_length=1)
     name: str = Field(..., min_length=2, max_length=100)
+    country: str = Field(default="", max_length=50)
 
 
 class TeacherUpdateRequest(BaseModel):

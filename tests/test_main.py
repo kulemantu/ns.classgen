@@ -249,6 +249,25 @@ def test_teacher_register(mock_save):
     assert data["teacher"]["name"] == "Mrs. Okafor"
 
 
+@patch("classgen.api.teacher.save_teacher")
+def test_teacher_register_with_country(mock_save):
+    mock_save.return_value = {
+        "name": "Mrs. Okafor",
+        "slug": "mrs-okafor",
+        "classes": [],
+        "country": "Nigeria",
+    }
+    response = client.post(
+        "/api/teacher/register",
+        json={"thread_id": "chat_abc123", "name": "Mrs. Okafor", "country": "Nigeria"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["teacher"]["country"] == "Nigeria"
+    # save_teacher must receive the country, not silently drop it.
+    mock_save.assert_called_once_with("chat_abc123", "Mrs. Okafor", country="Nigeria")
+
+
 def test_teacher_register_short_name():
     response = client.post("/api/teacher/register", json={"thread_id": "chat_abc123", "name": "X"})
     assert response.status_code == 422

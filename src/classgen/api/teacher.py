@@ -75,7 +75,7 @@ async def teacher_profile_api(thread_id: str = ""):
 @router.post("/api/teacher/register")
 async def teacher_register_api(req: TeacherRegisterRequest):
     """Register a web teacher using their threadId as identity."""
-    teacher = save_teacher(req.thread_id, req.name)
+    teacher = save_teacher(req.thread_id, req.name, country=req.country)
     return {
         "registered": True,
         "teacher": {

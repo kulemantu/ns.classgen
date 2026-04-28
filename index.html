@@ -1373,9 +1373,16 @@
                 container.innerHTML = `
                     <div style="padding:2rem 0;text-align:center">
                         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" style="margin:0 auto 1rem;display:block"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                        <p style="color:var(--sidebar-muted);font-size:0.85rem;margin-bottom:1.25rem">Set up your profile to track lessons and manage homework codes.</p>
+                        <p style="color:var(--sidebar-muted);font-size:0.85rem;margin-bottom:1.25rem">Set up your profile so we can tailor lessons to your country and track your homework codes.</p>
                         <div class="sidebar-input-row" style="flex-direction:column;gap:0.6rem">
                             <input class="sidebar-input" id="register-name" type="text" placeholder="Your name (e.g. Mrs. Okafor)" maxlength="100">
+                            <select class="sidebar-input" id="register-country" style="width:100%">
+                                <option value="">Where do you teach?</option>
+                                ${(window._countryGroups || []).map(g => `
+                                    <optgroup label="${escapeHtml(g.region)}">
+                                        ${(g.countries || []).map(c => `<option value="${escapeHtml(c.name)}">${c.flag ? c.flag + ' ' : ''}${escapeHtml(c.name)}</option>`).join('')}
+                                    </optgroup>`).join('')}
+                            </select>
                             <button class="sidebar-btn" style="width:100%" onclick="registerTeacher()">Get Started</button>
                         </div>
                     </div>
@@ -1467,13 +1474,16 @@
 
         async function registerTeacher() {
             const nameInput = document.getElementById('register-name');
+            const countryInput = document.getElementById('register-country');
             const name = nameInput ? nameInput.value.trim() : '';
+            const country = countryInput ? countryInput.value : '';
             if (name.length < 2) { nameInput && nameInput.focus(); return; }
+            if (!country) { countryInput && countryInput.focus(); return; }
             try {
                 const resp = await fetch('/api/teacher/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ thread_id: threadId, name }),
+                    body: JSON.stringify({ thread_id: threadId, name, country }),
                 });
                 if (!resp.ok) return;
                 const data = await resp.json();

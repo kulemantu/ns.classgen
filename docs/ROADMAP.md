@@ -370,6 +370,7 @@ Changes:
 - [x] `/api/chat` now links homework codes to registered web teachers (enables stats tracking)
 - [x] REST endpoints: `GET/POST/PATCH /api/teacher/profile`, `POST/DELETE /api/teacher/classes`, `DELETE /api/teacher/history`
 - [x] Test coverage for all new endpoints (9 tests)
+- [x] **Country at registration (April 2026)** — registration form captures name + country together, mirroring the public profile's `name · country` subtitle (`templates/profile.html`). Country is required; uses the same region-grouped dropdown as the profile sidebar. First lesson now generates with country context instead of waiting for the teacher to discover the sidebar field. `TeacherRegisterRequest.country` is API-optional but UI-required (WhatsApp registrants get country auto-detected from phone, so the API stays tolerant).
 
 Technical:
 - threadId serves as the `phone` field in the `teachers` table -- no schema changes needed
