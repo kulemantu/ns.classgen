@@ -9,7 +9,7 @@ from __future__ import annotations
 
 ONBOARDING = {
     "brand": "ClassGen",
-    "tagline": "Your AI lesson assistant",
+    "tagline": "Your Teaching assistant that gives you super powers ",
     "subtitle": ("Ready-to-teach lesson packs for your classroom \u2014 in seconds"),
     "slides": [
         {
