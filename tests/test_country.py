@@ -12,13 +12,21 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from classgen.api.app import app
+from classgen.data.countries import list_grouped
 from classgen.data.teachers import (
     _mem_teachers,
     get_teacher_by_phone,
     save_teacher,
     update_teacher_country,
 )
-from classgen.i18n import SUPPORTED_COUNTRIES, country_from_phone
+from classgen.i18n import (
+    COUNTRY_FLAGS,
+    COUNTRY_REGIONS,
+    PHONE_COUNTRIES,
+    REGIONS,
+    SUPPORTED_COUNTRIES,
+    country_from_phone,
+)
 
 client = TestClient(app)
 
@@ -147,19 +155,92 @@ class TestTeacherCountryDataLayer:
 
 
 class TestCountriesListEndpoint:
-    def test_returns_supported_countries(self):
+    def test_returns_groups_in_region_order(self):
         response = client.get("/api/teacher/countries")
         assert response.status_code == 200
         data = response.json()
-        assert "countries" in data
-        assert isinstance(data["countries"], list)
-        assert data["countries"] == SUPPORTED_COUNTRIES
+        assert "groups" in data
+        assert isinstance(data["groups"], list)
+        regions_returned = [g["region"] for g in data["groups"]]
+        # Regions appear in REGIONS order, with empty groups omitted.
+        assert regions_returned == [r for r in REGIONS if r in regions_returned]
+
+    def test_every_supported_country_appears_exactly_once(self):
+        response = client.get("/api/teacher/countries")
+        flat = [
+            c["name"] for g in response.json()["groups"] for c in g["countries"]
+        ]
+        assert sorted(flat) == sorted(SUPPORTED_COUNTRIES)
+        assert len(flat) == len(set(flat))  # no duplicates
+
+    def test_every_country_has_a_non_empty_flag(self):
+        response = client.get("/api/teacher/countries")
+        for g in response.json()["groups"]:
+            for c in g["countries"]:
+                assert c["flag"], f"missing flag for {c['name']}"
 
     def test_includes_key_markets(self):
         response = client.get("/api/teacher/countries")
-        countries = response.json()["countries"]
+        flat = [
+            c["name"] for g in response.json()["groups"] for c in g["countries"]
+        ]
         for expected in ("Nigeria", "Kenya", "Ghana", "South Africa"):
-            assert expected in countries
+            assert expected in flat
+
+
+class TestCountryFlags:
+    def test_every_supported_country_has_a_flag(self):
+        missing = [c for c in SUPPORTED_COUNTRIES if c not in COUNTRY_FLAGS]
+        assert not missing, f"countries without a flag: {missing}"
+
+    def test_flag_dict_matches_supported_countries_exactly(self):
+        # No stray flags for cut countries (Ethiopia, Malawi, Ivory Coast, Senegal).
+        assert set(COUNTRY_FLAGS.keys()) == set(SUPPORTED_COUNTRIES)
+
+    def test_flags_are_regional_indicator_pairs(self):
+        # Each flag is exactly two regional indicator code points (U+1F1E6..U+1F1FF).
+        for country, flag in COUNTRY_FLAGS.items():
+            codepoints = list(flag)
+            assert len(codepoints) == 2, f"{country} flag must be two code points"
+            for cp in codepoints:
+                assert 0x1F1E6 <= ord(cp) <= 0x1F1FF, (
+                    f"{country} flag has non-regional-indicator code point"
+                )
+
+
+class TestCountryRegions:
+    def test_every_supported_country_has_a_region(self):
+        missing = [c for c in SUPPORTED_COUNTRIES if c not in COUNTRY_REGIONS]
+        assert not missing, f"countries without a region: {missing}"
+
+    def test_every_region_value_is_in_REGIONS(self):
+        unknown = {r for r in COUNTRY_REGIONS.values() if r not in REGIONS}
+        assert not unknown, f"unknown regions: {unknown}"
+
+    def test_phone_countries_subset_of_dropdown(self):
+        # Auto-detect must never assign a country the dropdown can't display.
+        extras = set(PHONE_COUNTRIES.values()) - set(SUPPORTED_COUNTRIES)
+        assert not extras, f"phone-only countries: {extras}"
+
+
+class TestCountriesDataModule:
+    def test_in_memory_grouping_matches_constants(self):
+        groups = list_grouped()
+        # All regions present in REGIONS that have at least one country appear.
+        regions_returned = [g["region"] for g in groups]
+        for region in REGIONS:
+            expected_countries = [
+                c for c, r in COUNTRY_REGIONS.items() if r == region
+            ]
+            if expected_countries:
+                assert region in regions_returned
+
+        # Within each group, countries are sorted alphabetically and carry flags.
+        for g in groups:
+            names = [c["name"] for c in g["countries"]]
+            assert names == sorted(names)
+            for c in g["countries"]:
+                assert c["flag"] == COUNTRY_FLAGS[c["name"]]
 
 
 class TestUpdateCountryEndpoint:

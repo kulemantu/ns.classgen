@@ -26,7 +26,37 @@ PHONE_LOCALES: dict[str, tuple[str, str]] = {
     "+1": ("en_US", "USD"),  # US / international fallback
 }
 
-# Phone country-code -> country name (for teacher profile auto-detection)
+# Region display order for the country dropdown. Source of truth for
+# both the in-memory data path and the seeded supported_countries table.
+REGIONS: list[str] = [
+    "East Africa",
+    "West Africa",
+    "Southern Africa",
+    "Other",
+]
+
+# Country -> region. Drives optgroup placement in the dropdown.
+# Trimmed to the 14 markets ClassGen actively supports.
+COUNTRY_REGIONS: dict[str, str] = {
+    "Kenya": "East Africa",
+    "Rwanda": "East Africa",
+    "Tanzania": "East Africa",
+    "Uganda": "East Africa",
+    "Cameroon": "West Africa",
+    "Ghana": "West Africa",
+    "Nigeria": "West Africa",
+    "Botswana": "Southern Africa",
+    "South Africa": "Southern Africa",
+    "Zambia": "Southern Africa",
+    "Zimbabwe": "Southern Africa",
+    "India": "Other",
+    "United Kingdom": "Other",
+    "United States": "Other",
+}
+
+# Phone country-code -> country name (for WhatsApp profile auto-detection).
+# Must stay a subset of COUNTRY_REGIONS — auto-detect should never assign
+# a country that the dropdown can't display.
 PHONE_COUNTRIES: dict[str, str] = {
     "+234": "Nigeria",
     "+254": "Kenya",
@@ -35,42 +65,36 @@ PHONE_COUNTRIES: dict[str, str] = {
     "+256": "Uganda",
     "+27": "South Africa",
     "+250": "Rwanda",
-    "+251": "Ethiopia",
     "+260": "Zambia",
     "+263": "Zimbabwe",
-    "+265": "Malawi",
     "+267": "Botswana",
     "+237": "Cameroon",
-    "+225": "Ivory Coast",
-    "+221": "Senegal",
     "+91": "India",
     "+44": "United Kingdom",
     "+1": "United States",
 }
 
-# All supported countries for web dropdown (superset of phone detection)
-SUPPORTED_COUNTRIES: list[str] = sorted(
-    {
-        "Nigeria",
-        "Kenya",
-        "Ghana",
-        "Tanzania",
-        "Uganda",
-        "South Africa",
-        "Rwanda",
-        "Ethiopia",
-        "Zambia",
-        "Zimbabwe",
-        "Malawi",
-        "Botswana",
-        "Cameroon",
-        "Ivory Coast",
-        "Senegal",
-        "India",
-        "United Kingdom",
-        "United States",
-    }
-)
+# All supported countries for web dropdown — derived from COUNTRY_REGIONS.
+SUPPORTED_COUNTRIES: list[str] = sorted(COUNTRY_REGIONS.keys())
+
+# Flag emoji per supported country. Pure presentation — never stored in
+# DB or sent to LLM.
+COUNTRY_FLAGS: dict[str, str] = {
+    "Botswana": "\U0001f1e7\U0001f1fc",
+    "Cameroon": "\U0001f1e8\U0001f1f2",
+    "Ghana": "\U0001f1ec\U0001f1ed",
+    "India": "\U0001f1ee\U0001f1f3",
+    "Kenya": "\U0001f1f0\U0001f1ea",
+    "Nigeria": "\U0001f1f3\U0001f1ec",
+    "Rwanda": "\U0001f1f7\U0001f1fc",
+    "South Africa": "\U0001f1ff\U0001f1e6",
+    "Tanzania": "\U0001f1f9\U0001f1ff",
+    "Uganda": "\U0001f1fa\U0001f1ec",
+    "United Kingdom": "\U0001f1ec\U0001f1e7",
+    "United States": "\U0001f1fa\U0001f1f8",
+    "Zambia": "\U0001f1ff\U0001f1f2",
+    "Zimbabwe": "\U0001f1ff\U0001f1fc",
+}
 
 # Best locale for displaying each currency's native symbol.
 _CURRENCY_LOCALE: dict[str, str] = {

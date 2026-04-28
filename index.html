@@ -1349,7 +1349,7 @@
                 ]);
                 const data = await profileResp.json();
                 const countriesData = await countriesResp.json();
-                window._countryOptions = countriesData.countries || [];
+                window._countryGroups = countriesData.groups || [];
                 profileState.loaded = true;
                 profileState.registered = data.registered;
                 if (data.registered) {
@@ -1409,7 +1409,10 @@
                     <div class="sidebar-section-title">Country</div>
                     <select class="sidebar-input" id="country-select" onchange="updateCountry()" style="width:100%">
                         <option value="">Select country</option>
-                        ${(window._countryOptions || []).map(c => `<option value="${escapeHtml(c)}" ${c === (t.country || '') ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+                        ${(window._countryGroups || []).map(g => `
+                            <optgroup label="${escapeHtml(g.region)}">
+                                ${(g.countries || []).map(c => `<option value="${escapeHtml(c.name)}" ${c.name === (t.country || '') ? 'selected' : ''}>${c.flag ? c.flag + ' ' : ''}${escapeHtml(c.name)}</option>`).join('')}
+                            </optgroup>`).join('')}
                     </select>
                 </div>
                 <div class="sidebar-stats">

@@ -34,7 +34,7 @@ from classgen.data import (
     update_teacher_country,
     update_teacher_name,
 )
-from classgen.i18n import SUPPORTED_COUNTRIES
+from classgen.data.countries import list_grouped as list_countries_grouped
 
 router = APIRouter()
 
@@ -114,8 +114,13 @@ async def teacher_update_country_api(req: TeacherCountryRequest):
 
 @router.get("/api/teacher/countries")
 async def teacher_countries_api():
-    """List supported countries for the dropdown."""
-    return {"countries": SUPPORTED_COUNTRIES}
+    """List supported countries for the dropdown, grouped by region.
+
+    Returns ``{"groups": [{"region", "countries": [{"name", "flag"}]}]}``.
+    ``flag`` is presentation only — the teacher's stored country (DB
+    column / LLM prompt) is always the plain ``name`` string.
+    """
+    return {"groups": list_countries_grouped()}
 
 
 @router.post("/api/teacher/classes")
