@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 
@@ -233,39 +234,52 @@ async def _finalize_lesson(
     has_content = _has_content(assistant_reply, lesson_pack)
 
     if has_content:
-        # --- PDF generation ---
-        try:
-            if lesson_pack and flags.structured_output:
-                pdf_adapter = PDFAdapter()
-                pdf_filename = pdf_adapter.render_lesson(lesson_pack, subtitle=user_message[:120])
-            else:
-                pdf_text = _clean_block_markers_for_pdf(assistant_reply)
-                pdf_filename = generate_pdf_from_markdown(pdf_text, subtitle=user_message[:120])
-            pdf_url = f"/static/{pdf_filename}" if pdf_filename else None
-        except Exception as e:
-            print(f"Error generating PDF: {e}")
+        # Extract any embedded quiz from the lesson pack first — if present,
+        # we can skip the second LLM call entirely.
+        homework_block_text = _extract_homework_block(assistant_reply)
+        embedded_quiz: list = []
+        if flags.effective_embedded_quiz and lesson_pack:
+            hw_block = next(
+                (b for b in lesson_pack.blocks if isinstance(b, HomeworkBlock)),
+                None,
+            )
+            if hw_block and hw_block.quiz:
+                embedded_quiz = [q.model_dump() for q in hw_block.quiz]
+                if not homework_block_text and hw_block.narrative:
+                    homework_block_text = hw_block.narrative
 
-        # --- Homework code + quiz ---
+        async def _build_pdf() -> str | None:
+            try:
+                if lesson_pack and flags.structured_output:
+                    pdf_adapter = PDFAdapter()
+                    return await asyncio.to_thread(
+                        pdf_adapter.render_lesson,
+                        lesson_pack,
+                        subtitle=user_message[:120],
+                    )
+                pdf_text = _clean_block_markers_for_pdf(assistant_reply)
+                return await asyncio.to_thread(
+                    generate_pdf_from_markdown,
+                    pdf_text,
+                    subtitle=user_message[:120],
+                )
+            except Exception as e:
+                print(f"Error generating PDF: {e}")
+                return None
+
+        async def _build_quiz() -> list:
+            if embedded_quiz:
+                return embedded_quiz
+            return await _generate_quiz_questions(assistant_reply)
+
+        # PDF render (CPU-bound, in a thread) runs concurrently with the quiz
+        # LLM call (network-bound). Saves the quiz call's wall-time when both
+        # are needed.
+        pdf_filename, quiz_questions = await asyncio.gather(_build_pdf(), _build_quiz())
+        pdf_url = f"/static/{pdf_filename}" if pdf_filename else None
+
         try:
             homework_code = generate_homework_code()
-            homework_block_text = _extract_homework_block(assistant_reply)
-
-            # When structured output + embedded quiz: extract quiz from LessonPack
-            quiz_questions: list = []
-            if flags.effective_embedded_quiz and lesson_pack:
-                hw_block = next(
-                    (b for b in lesson_pack.blocks if isinstance(b, HomeworkBlock)),
-                    None,
-                )
-                if hw_block and hw_block.quiz:
-                    quiz_questions = [q.model_dump() for q in hw_block.quiz]
-                    if not homework_block_text and hw_block.narrative:
-                        homework_block_text = hw_block.narrative
-
-            # Fall back to second LLM call for quiz
-            if not quiz_questions:
-                quiz_questions = await _generate_quiz_questions(assistant_reply)
-
             save_homework_code(
                 homework_code,
                 thread_id,
