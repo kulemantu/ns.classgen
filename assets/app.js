@@ -392,7 +392,11 @@
         async function initServiceWorker() {
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
             try {
-                swRegistration = await navigator.serviceWorker.register('/static/sw.js');
+                // One-time migration: clean up the legacy /static/sw.js registration
+                // (was shadowed by the pdf_output named volume on prod, never updated).
+                const legacy = await navigator.serviceWorker.getRegistration('/static/sw.js');
+                if (legacy) await legacy.unregister();
+                swRegistration = await navigator.serviceWorker.register('/assets/sw.js');
                 const sub = await swRegistration.pushManager.getSubscription();
                 pushEnabled = !!sub;
             } catch (e) { console.log('SW registration failed:', e); }
@@ -708,7 +712,7 @@
         async function checkPushStatus() {
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
             try {
-                const reg = await navigator.serviceWorker.getRegistration('/static/sw.js');
+                const reg = await navigator.serviceWorker.getRegistration('/assets/sw.js');
                 if (reg) { const sub = await reg.pushManager.getSubscription(); pushEnabled = !!sub; }
             } catch (e) {}
         }

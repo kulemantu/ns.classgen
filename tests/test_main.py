@@ -78,6 +78,18 @@ def test_assets_cache_headers_and_hash_validation():
     assert client.get("/assets/app.deadbeef.css").status_code == 404
 
 
+def test_service_worker_route_and_cache_headers():
+    """sw.js is served from /assets/ but with revalidate-on-every-load headers,
+    NOT the year-long immutable cache used by hashed bundles. SW URLs are
+    stable; their bytes change in place."""
+    r = client.get("/assets/sw.js")
+    assert r.status_code == 200
+    assert "javascript" in r.headers["content-type"]
+    assert r.headers["cache-control"] == "no-cache, must-revalidate"
+    # Sanity: it's actually a service worker (handles push)
+    assert "addEventListener('push'" in r.text
+
+
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200

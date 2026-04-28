@@ -106,7 +106,10 @@ app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 async def cache_headers(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if path.startswith("/assets/"):
+    if path == "/assets/sw.js":
+        # Service worker URL is stable -- browsers cache its bytes, not its URL.
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    elif path.startswith("/assets/"):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     elif path in ("/", "/terms"):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
@@ -133,6 +136,14 @@ async def hashed_asset(hash_part: str, ext: str):
         raise HTTPException(status_code=404)
     media = "text/css" if ext == "css" else "application/javascript"
     return FileResponse(str(Path(_assets_dir) / name), media_type=media)
+
+
+@app.get("/assets/sw.js")
+async def service_worker():
+    sw_path = Path(_assets_dir) / "sw.js"
+    if not sw_path.exists():
+        raise HTTPException(status_code=404)
+    return FileResponse(str(sw_path), media_type="application/javascript")
 
 
 @app.get("/terms", response_class=HTMLResponse)
