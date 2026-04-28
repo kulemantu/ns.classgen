@@ -493,6 +493,42 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
             },
         )
 
+        # Cache shortcut: if this lesson is already cached as structured JSON,
+        # replay the blocks immediately and finalize without an LLM call.
+        # Mirrors the blocking endpoint's check at _generate_lesson (above).
+        if class_level and subject and topic:
+            cached_json = get_cached_lesson_json(subject, topic, class_level)
+            if cached_json:
+                print(f"[cache hit/stream] {class_level} {subject}: {topic}")
+                log_session(req.thread_id, "user", req.message)
+                cached_text = json.dumps(cached_json)
+                cached_pack, _ = parse_lesson_response(cached_text)
+                for block in cached_json.get("blocks", []):
+                    yield _sse_event("block", block)
+                log_session(req.thread_id, "assistant", cached_text)
+                try:
+                    _, pdf_url, homework_code, _ = await _finalize_lesson(
+                        cached_text,
+                        req.message,
+                        req.thread_id,
+                        teacher_phone,
+                        class_level,
+                        subject,
+                        topic,
+                        lesson_pack=cached_pack,
+                    )
+                    if teacher_phone and _has_content(cached_text, cached_pack):
+                        log_usage(teacher_phone, "lesson")
+                except Exception as e:
+                    print(f"Error in stream cache finalization: {e}")
+                    pdf_url = None
+                    homework_code = None
+                yield _sse_event(
+                    "done",
+                    {"pdf_url": pdf_url, "homework_code": homework_code},
+                )
+                return
+
         # Build prompt
         history = get_session_history(req.thread_id, limit=10)
         log_session(req.thread_id, "user", req.message)

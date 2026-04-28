@@ -324,6 +324,54 @@ class TestStreamEndpoint:
             assert event_types.count("block") == 5
             assert "done" in event_types
 
+    @patch("classgen.api.chat.save_homework_code")
+    @patch("classgen.api.chat.generate_homework_code", return_value="CACHED7")
+    @patch("classgen.api.chat.PDFAdapter")
+    @patch("classgen.api.chat.log_session")
+    @patch("classgen.api.chat.get_session_history", return_value=[])
+    @patch("classgen.api.chat.stream_openrouter")
+    @patch("classgen.api.chat.get_cached_lesson_json", return_value=SAMPLE_LESSON_JSON_DICT)
+    def test_stream_cache_hit_skips_llm(
+        self,
+        mock_cached,
+        mock_stream,
+        mock_hist,
+        mock_log,
+        mock_pdf_adapter,
+        mock_code,
+        mock_save,
+    ):
+        """Cache hit on (subject, topic, class_level) replays blocks without
+        an LLM call and emits a clean meta/blocks/done sequence."""
+        mock_pdf_adapter.return_value.render_lesson.return_value = "cached.pdf"
+        with patch.dict(
+            os.environ,
+            {"FF_SSE_STREAMING": "true", "FF_STRUCTURED_OUTPUT": "true"},
+        ):
+            response = client.post(
+                "/api/chat/stream",
+                json={"message": "SS2 Biology: Photosynthesis", "thread_id": "t-cache"},
+            )
+            assert response.status_code == 200
+            assert "text/event-stream" in response.headers.get("content-type", "")
+
+            events = _parse_sse(response.text)
+            event_types = [e["event"] for e in events]
+
+            # Cache lookup happened, LLM did not
+            mock_cached.assert_called_once_with("Biology", "Photosynthesis", "SS2")
+            mock_stream.assert_not_called()
+
+            # SSE shape: one meta, one block per cached block, one done
+            assert event_types[0] == "meta"
+            assert event_types[-1] == "done"
+            assert event_types.count("block") == len(SAMPLE_LESSON_JSON_DICT["blocks"])
+
+            # done payload carries the cached PDF + homework code
+            done = next(e for e in events if e["event"] == "done")
+            assert done["data"]["pdf_url"] == "/static/cached.pdf"
+            assert done["data"]["homework_code"] == "CACHED7"
+
 
 def _parse_sse(text: str) -> list[dict]:
     """Parse SSE text into a list of {event, data} dicts."""
