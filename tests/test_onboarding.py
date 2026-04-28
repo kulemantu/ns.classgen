@@ -182,6 +182,17 @@ class TestIntroOverlay:
     def test_intro_dm_serif_font(self):
         response = client.get("/")
         assert "DM+Serif+Display" in response.text
+
+    def test_settings_has_reset_intro(self):
+        """Settings panel exposes a button to re-show the onboarding without clearing chats."""
+        response = client.get("/")
+        html = response.text
+        # Button + handler + localStorage clear
+        assert 'onclick="resetIntro()"' in html
+        assert "function resetIntro()" in html
+        assert "classgen_intro_seen" in html
+        assert "Reset intro" in html
+        assert "Show intro on next refresh." in html
         assert "DM Serif Display" in response.text
 
 

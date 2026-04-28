@@ -1577,11 +1577,22 @@
                 </div>
 
                 <div class="sidebar-section">
+                    <div class="sidebar-section-title">Intro</div>
+                    <button class="sidebar-btn" style="width:100%" onclick="resetIntro()">Reset intro</button>
+                    <p style="font-size:0.7rem;color:var(--sidebar-muted);margin-top:6px">Show intro on next refresh.</p>
+                </div>
+
+                <div class="sidebar-section">
                     <div class="sidebar-section-title">Chat</div>
                     <button class="sidebar-btn sidebar-btn-danger" style="width:100%" onclick="clearChatHistory()">Clear chat history</button>
                     <p style="font-size:0.7rem;color:var(--sidebar-muted);margin-top:6px">Removes all messages from this session</p>
                 </div>
             `;
+        }
+
+        function resetIntro() {
+            localStorage.removeItem('classgen_intro_seen');
+            showToast('Intro will show on next refresh.');
         }
 
         async function registerTeacher() {
