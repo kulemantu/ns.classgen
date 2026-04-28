@@ -599,9 +599,14 @@
         }
         /* ── Intro overlay ──────────────────────────────── */
         #intro-overlay {
-            position: fixed; inset: 0; z-index: 200;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 100vh;
+            height: 100dvh;
+            z-index: 200;
             background: linear-gradient(165deg, #FAF7F2 0%, #E8F0EC 50%, #F5F0E8 100%);
             display: flex; flex-direction: column;
+            overscroll-behavior: contain;
             transition: opacity 0.5s, visibility 0.5s;
         }
         [data-theme="dark"] #intro-overlay {
@@ -660,7 +665,13 @@
         }
         .intro-marquee-track {
             display: flex; gap: 12px; width: max-content;
-            animation: marquee-scroll 20s linear infinite;
+            animation: marquee-scroll 28s linear infinite;
+            will-change: transform;
+        }
+        .intro-marquee:hover .intro-marquee-track,
+        .intro-marquee:focus-within .intro-marquee-track { animation-play-state: paused; }
+        @media (prefers-reduced-motion: reduce) {
+            .intro-marquee-track { animation: none; }
         }
         @keyframes marquee-scroll {
             0% { transform: translateX(0); }
@@ -668,9 +679,10 @@
         }
         .intro-example {
             display: inline-block; background: var(--bubble-user-bg);
-            color: var(--bubble-user-text); padding: 8px 16px;
-            border-radius: 12px; font-size: 0.82rem; font-weight: 500;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08); white-space: nowrap; flex-shrink: 0;
+            color: var(--bubble-user-text); padding: 9px 16px;
+            border-radius: 12px; font-size: 0.88rem; font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.10); white-space: nowrap; flex-shrink: 0;
+            letter-spacing: -0.005em;
         }
         /* CSS-rendered mini lesson blocks */
         .intro-blocks {
@@ -710,10 +722,72 @@
             font-size: 0.85rem; color: var(--modal-text);
             line-height: 1.5; font-weight: 500;
         }
+        /* Profile content preview slide */
+        .intro-profile-preview {
+            width: 100%; max-width: 320px;
+            background: var(--enc-block-bg);
+            border: 1px solid var(--enc-block-border);
+            border-radius: 16px;
+            padding: 16px 14px;
+            margin-bottom: 1.25rem;
+            text-align: left;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        }
+        .intro-pp-section { margin-bottom: 12px; }
+        .intro-pp-section:last-child { margin-bottom: 0; }
+        .intro-pp-label {
+            font-size: 0.6rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--sidebar-muted); margin-bottom: 4px;
+        }
+        .intro-pp-value {
+            font-size: 0.85rem; color: var(--sidebar-input-text);
+            background: var(--sidebar-input-bg);
+            border: 1px solid var(--sidebar-input-bd);
+            border-radius: 6px; padding: 6px 10px;
+        }
+        .intro-pp-stats {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;
+        }
+        .intro-pp-stat {
+            background: var(--sidebar-stat-bg);
+            border: 1px solid var(--sidebar-stat-border);
+            border-radius: 8px; padding: 7px 4px; text-align: center;
+        }
+        .intro-pp-stat-num {
+            font-size: 1.15rem; font-weight: 700; color: var(--sidebar-stat-num);
+            line-height: 1.1;
+        }
+        .intro-pp-stat-lbl {
+            font-size: 0.55rem; color: var(--sidebar-stat-lbl);
+            margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        .intro-pp-classes { display: flex; flex-wrap: wrap; gap: 4px; }
+        .intro-pp-badge {
+            display: inline-flex; align-items: center;
+            background: var(--sidebar-badge-bg);
+            border: 1px solid var(--sidebar-badge-bd);
+            color: var(--sidebar-badge-text);
+            font-size: 0.7rem; font-weight: 500;
+            padding: 2px 8px; border-radius: 999px;
+        }
+        .intro-pp-codes { list-style: none; padding: 0; margin: 0; }
+        .intro-pp-codes li {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 5px 0; font-size: 0.75rem;
+            border-bottom: 1px solid var(--sidebar-code-bd);
+        }
+        .intro-pp-codes li:last-child { border-bottom: none; }
+        .intro-pp-code-id { color: var(--sidebar-code-link); font-weight: 600; }
+        .intro-pp-code-title {
+            color: var(--sidebar-code-title); font-size: 0.7rem;
+            max-width: 60%; text-align: right;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
         /* Navigation */
         .intro-nav {
             display: flex; flex-direction: column; align-items: center;
-            padding: 1rem 1.5rem 2rem; gap: 12px;
+            padding: 1.25rem 1.5rem calc(env(safe-area-inset-bottom, 0px) + 1.75rem);
+            gap: 18px;
         }
         .intro-dots {
             display: flex; gap: 8px;
@@ -851,8 +925,45 @@
                 </div>
                 <div class="intro-body">Designed for classrooms of 30-60 students with exercise books, pens, and a chalkboard. No internet needed in class.</div>
             </div>
-            <!-- Slide 3: Features + Accept -->
+            <!-- Slide 3: Profile content preview -->
             <div class="intro-slide" data-slide="2">
+                <div class="intro-heading">Track every class, in one place.</div>
+                <div class="intro-body">Your dashboard remembers each lesson — homework codes, class stats, and the country you teach in. Open it anytime from the menu.</div>
+                <div class="intro-profile-preview" aria-hidden="true">
+                    <div class="intro-pp-section">
+                        <div class="intro-pp-label">Name</div>
+                        <div class="intro-pp-value">Miss Mandizi</div>
+                    </div>
+                    <div class="intro-pp-section">
+                        <div class="intro-pp-label">Country</div>
+                        <div class="intro-pp-value">&#127472;&#127466; Kenya</div>
+                    </div>
+                    <div class="intro-pp-section">
+                        <div class="intro-pp-stats">
+                            <div class="intro-pp-stat"><div class="intro-pp-stat-num">12</div><div class="intro-pp-stat-lbl">Total</div></div>
+                            <div class="intro-pp-stat"><div class="intro-pp-stat-num">4</div><div class="intro-pp-stat-lbl">This Week</div></div>
+                            <div class="intro-pp-stat"><div class="intro-pp-stat-num">8</div><div class="intro-pp-stat-lbl">This Month</div></div>
+                        </div>
+                    </div>
+                    <div class="intro-pp-section">
+                        <div class="intro-pp-label">Classes</div>
+                        <div class="intro-pp-classes">
+                            <span class="intro-pp-badge">SS2 Biology</span>
+                            <span class="intro-pp-badge">JSS3 Maths</span>
+                        </div>
+                    </div>
+                    <div class="intro-pp-section">
+                        <div class="intro-pp-label">Recent Homework</div>
+                        <ul class="intro-pp-codes">
+                            <li><span class="intro-pp-code-id">BIO47</span><span class="intro-pp-code-title">Photosynthesis</span></li>
+                            <li><span class="intro-pp-code-id">MATH88</span><span class="intro-pp-code-title">Quadratic Equations</span></li>
+                            <li><span class="intro-pp-code-id">HIST21</span><span class="intro-pp-code-title">Colonial Rule</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <!-- Slide 4: Features + Accept -->
+            <div class="intro-slide" data-slide="3">
                 <div class="intro-heading">Everything your students need</div>
                 <div class="intro-features">
                     <div class="intro-feature">
@@ -876,6 +987,7 @@
                 <div class="intro-dot active" data-dot="0"></div>
                 <div class="intro-dot" data-dot="1"></div>
                 <div class="intro-dot" data-dot="2"></div>
+                <div class="intro-dot" data-dot="3"></div>
             </div>
             <button class="intro-btn" id="intro-cta">See How It Works</button>
             <button class="intro-skip" id="intro-skip">Skip</button>
@@ -1622,7 +1734,8 @@
         };
 
         let introSlide = 0;
-        const ctaLabels = ['See How It Works', 'Next', 'Accept & Start Teaching'];
+        const LAST_SLIDE = 3;
+        const ctaLabels = ['See How It Works', 'Next', 'Next', 'Accept & Start Teaching'];
 
         function initIntro() {
             if (localStorage.getItem('classgen_intro_seen')) return;
@@ -1635,7 +1748,7 @@
             overlay.addEventListener('touchend', e => {
                 const dx = e.changedTouches[0].clientX - touchStartX;
                 if (Math.abs(dx) > 50) {
-                    if (dx < 0 && introSlide < 2) goToIntroSlide(introSlide + 1);
+                    if (dx < 0 && introSlide < LAST_SLIDE) goToIntroSlide(introSlide + 1);
                     else if (dx > 0 && introSlide > 0) goToIntroSlide(introSlide - 1);
                 }
             }, { passive: true });
@@ -1647,13 +1760,13 @@
 
             // CTA button
             document.getElementById('intro-cta').addEventListener('click', () => {
-                if (introSlide < 2) goToIntroSlide(introSlide + 1);
+                if (introSlide < LAST_SLIDE) goToIntroSlide(introSlide + 1);
                 else dismissIntro();
             });
 
             // Skip button
             document.getElementById('intro-skip').addEventListener('click', () => {
-                goToIntroSlide(2); // Jump to terms slide
+                goToIntroSlide(LAST_SLIDE); // Jump to accept slide
             });
         }
 
@@ -1668,7 +1781,7 @@
             dots.forEach((d, i) => d.classList.toggle('active', i === n));
             document.getElementById('intro-cta').textContent = ctaLabels[n];
             // Hide skip on last slide
-            document.getElementById('intro-skip').style.display = n === 2 ? 'none' : '';
+            document.getElementById('intro-skip').style.display = n === LAST_SLIDE ? 'none' : '';
         }
 
         function dismissIntro() {

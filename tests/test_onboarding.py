@@ -108,14 +108,36 @@ class TestIntroOverlay:
         response = client.get("/")
         assert 'id="intro-overlay"' in response.text
 
-    def test_intro_has_3_slides(self):
+    def test_intro_has_4_slides(self):
         response = client.get("/")
-        assert response.text.count('class="intro-slide') >= 3
+        assert response.text.count('class="intro-slide') >= 4
 
     def test_intro_dot_pagination(self):
         response = client.get("/")
         assert 'class="intro-dots"' in response.text
-        assert response.text.count('class="intro-dot') >= 3
+        assert response.text.count('class="intro-dot') >= 4
+
+    def test_intro_has_profile_preview_slide(self):
+        response = client.get("/")
+        html = response.text
+        assert 'class="intro-profile-preview"' in html
+        assert "Miss Mandizi" in html
+        assert "Kenya" in html
+        # Stat labels (case-sensitive copy pin)
+        assert "Total" in html
+        assert "This Week" in html
+        assert "This Month" in html
+        # Sample homework codes
+        assert "BIO47" in html
+        assert "Photosynthesis" in html
+
+    def test_intro_cta_labels_match_slide_count(self):
+        """Pin: ctaLabels array length matches slide count to prevent off-by-one drift."""
+        response = client.get("/")
+        assert (
+            "['See How It Works', 'Next', 'Next', 'Accept & Start Teaching']"
+            in response.text
+        )
 
     def test_intro_skip_button(self):
         response = client.get("/")
