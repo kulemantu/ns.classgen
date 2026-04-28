@@ -560,6 +560,7 @@ scratch/           # Experiments — NOT importable, NOT in package.
 - **Web push notifications.** `GET /api/vapid-key` + `POST /api/push/subscribe` (`api/push.py`), `notify_quiz_submission()` invoked from the homework submit path (`api/homework.py:129`). Teacher receives browser notifications when students submit.
 - **Teacher lesson stats.** `get_teacher_lesson_stats()` powers the profile-page stats card and the WhatsApp `stats` command.
 - **Empty-content recovery (April 2026).** When the LLM emits a clean `Title:/Summary:/Details:` lesson but drops the `[BLOCK_START_X]/[BLOCK_END]` outer markers (1/5 occurrence in flags-off perf bench 2026-04-28), `parse_lesson_response()` falls back to a positional recovery parser that maps the sections to opener/explain/activity/homework/teacher_notes. PDF + homework code now generate correctly instead of silently dropping; recovery frequency is observable via `[recovery] no-markers fallback fired blocks=N` log lines. Covered by `tests/test_parsers.py::TestNoMarkersRecovery` (8 unit tests) and `tests/test_main.py::test_chat_recovers_lesson_when_llm_omits_block_markers` (integration).
+- **Asset pipeline (April 2026 / commit `219666f`).** Web UI inline CSS+JS extracted from the 93 KB `index.html` monolith into hashed bundles at `/assets/app.<sha256-8>.{css,js}`. SHA-256 hashing in lifespan, `Cache-Control: public, max-age=31536000, immutable` on hashed routes, `no-cache, must-revalidate` on the HTML shell, `GZipMiddleware` for >1 KB responses, FOUT shield + preconnect/preload to keep text in sans-serif while CSS loads. On the wire: HTML 93 KB → 3.6 KB gzip; CSS 36.7 KB → 6.4 KB gzip. Repeat-visit payload drops from ~93 KB raw to ~3.6 KB shell + 304s on cached assets. Mounted at `/assets/` rather than `/static/` to escape the `pdf_output` named-volume shadow that silently keeps image-baked files stale across rebuilds (memory: `feedback_docker_volume_shadowing.md`). 464 tests, ruff clean.
 
 #### User Stories
 
@@ -829,6 +830,17 @@ Re-scoped to two phases:
   - Frontend: "Rewrite block" button on each block card in web chat
   - WhatsApp: `rewrite opener: too boring` command (flow-engine dispatch)
   - Data: updates `lesson_json` in place; logs each regen with block_type + critique for future prompt tuning
+
+**[ ] US-4.5.5: Rich markdown rendering inside chat-bubble prose**
+- As a teacher chatting with the assistant, when the LLM returns a clarification or explanation that contains lists or emphasis, the bubble renders proper bullets/bold/headings instead of raw `[brackets] | pipes |` or asterisks in the middle of plain text. The current "Biology Topics: [Cell Structure] | [Genetics] | [Ecology]" pattern (LLM faking a list inside plain prose) becomes either a real bulleted list or a row of inline pill chips, depending on whether the items are informational or pickable.
+- **Scope guard.** This story is about the **prose body** of the bubble. The existing button-menu CTA pattern (`wa-reply-btn` for "SS2 Nigeria / Form 2 Kenya / Other") is already structured and working — markdown rendering does NOT apply to it.
+- Architecture:
+  - Schema: extend the chat clarification response with a `body_format: "markdown"` flag (or default to markdown when `FF_STRUCTURED_OUTPUT` is on); add an optional `inline_options: list[str]` field for non-CTA pick chips (e.g. topic suggestions) rendered inside the bubble as horizontal pills, distinct from `suggestions` (which advance the flow as full-width buttons).
+  - Prompt: tighten `CLASSGEN_JSON_SYSTEM_PROMPT` so the LLM emits lists as markdown bullets in `message`, and routes pick-from-N options to `inline_options` rather than ad-hoc `[brackets]` in prose.
+  - Frontend: small markdown subset renderer in `assets/app.js` (~1 KB target — bullets, bold, italic, links; stay vanilla per Design System, no marked.js / snarkdown dep). Reuse existing `escapeHtml()` for safety. Reuse the existing `.markdown-body` CSS in `assets/app.css` (currently scoped to the encyclopedia modal) for chat bubbles by widening the selector or adding a sibling `.bubble-markdown` class.
+  - WhatsApp: render markdown to plain text via the channel adapter — asterisks for bold are already WhatsApp-native; bullets become `- ` lines. `inline_options` become a numbered list ("Reply 1, 2, 3 to pick").
+  - Tests: render fixtures in `tests/test_main.py` covering markdown-bullet and inline-options paths; parity test under `.mock/e2e/` confirming the same clarification renders correctly in both web and WhatsApp adapters.
+- Flag-gate behind a new `FF_MARKDOWN_BUBBLES` so we can roll out incrementally and roll back without touching code.
 
 ---
 
