@@ -510,3 +510,86 @@ def test_chat_recovers_lesson_when_llm_omits_block_markers(
     # PDF generation and homework save both fired (not skipped via has_content)
     mock_pdf.assert_called_once()
     mock_save.assert_called_once()
+
+
+# --- Defensive: data.reply never leaks raw JSON when lesson_pack is set ---
+
+
+@patch("classgen.api.chat.save_homework_code")
+@patch("classgen.api.chat.generate_homework_code", return_value="LP1234")
+@patch("classgen.api.chat.PDFAdapter")
+@patch("classgen.api.chat.get_cached_lesson", return_value=None)
+@patch("classgen.api.chat.log_session")
+@patch("classgen.api.chat.get_session_history", return_value=[])
+@patch("classgen.api.chat.call_openrouter_json", new_callable=AsyncMock)
+def test_chat_reply_is_human_readable_when_lesson_pack_present(
+    mock_llm,
+    mock_hist,
+    mock_log,
+    mock_cached,
+    mock_pdf_adapter,
+    mock_code,
+    mock_save,
+):
+    """Defensive contract: data.reply must NEVER be raw JSON when
+    data.lesson_pack is set. Otherwise any frontend rendering regression
+    that drops the lesson_pack branch leaks { "version": "4.0", ... }
+    into the chat bubble (recurring bug pattern -- happened with the
+    clarification path before commit 9e3e55c, and again with the
+    in-flight asset-bundle restructure on 2026-04-29). Pin the contract
+    server-side so the frontend has a safe fallback string regardless.
+
+    Mocks get_cached_lesson to None to bypass any in-memory cache pollution
+    from prior tests that may have cached this subject/topic/class tuple."""
+    from tests.fixtures import SAMPLE_LESSON_JSON
+
+    mock_llm.return_value = SAMPLE_LESSON_JSON
+    mock_pdf_adapter.return_value.render_lesson.return_value = "lesson.pdf"
+
+    with patch.dict(os.environ, {"FF_STRUCTURED_OUTPUT": "true"}, clear=True):
+        response = client.post(
+            "/api/chat",
+            json={"message": "SS2 Biology: Photosynthesis", "thread_id": "sanitize-test"},
+        )
+    assert response.status_code == 200
+    data = response.json()
+
+    # lesson_pack still present (sanity)
+    assert "lesson_pack" in data
+    assert len(data["lesson_pack"]["blocks"]) == 5
+
+    # data.reply is the human-readable summary, NOT raw JSON
+    reply = data["reply"]
+    assert not reply.lstrip().startswith("{"), f"data.reply leaked raw JSON: {reply[:80]!r}"
+    assert '"version"' not in reply
+    assert '"blocks"' not in reply
+    assert '"meta"' not in reply
+
+    # Should be a brief, frontend-safe summary
+    assert len(reply) < 100
+    assert "Lesson Pack" in reply
+    assert "5" in reply  # block count
+
+
+@patch("classgen.api.chat.log_session")
+@patch("classgen.api.chat.get_session_history", return_value=[])
+@patch("classgen.api.chat.call_openrouter_json", new_callable=AsyncMock)
+def test_chat_clarification_reply_unchanged_by_sanitization(mock_llm, mock_hist, mock_log):
+    """Sanitization only fires when lesson_pack is set. Clarification
+    responses (no lesson_pack) must keep their existing question + SUGGESTIONS
+    formatting from commit 9e3e55c."""
+    mock_llm.return_value = (
+        '{"clarification": "What class level?", "suggestions": ["JSS1", "JSS2"]}'
+    )
+    with patch.dict(os.environ, {"FF_STRUCTURED_OUTPUT": "true"}, clear=True):
+        response = client.post(
+            "/api/chat",
+            json={"message": "math", "thread_id": "sanitize-clarif"},
+        )
+    data = response.json()
+
+    assert "lesson_pack" not in data
+    # Clarification path is preserved (no "Lesson Pack ready" override)
+    assert "Lesson Pack ready" not in data["reply"]
+    assert "What class level?" in data["reply"]
+    assert "SUGGESTIONS:" in data["reply"]

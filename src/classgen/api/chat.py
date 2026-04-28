@@ -386,6 +386,14 @@ async def local_chat_endpoint(req: ChatRequest, request: Request):
     # When structured output is on, include the lesson pack for the frontend
     if lesson_pack and flags.structured_output:
         response["lesson_pack"] = lesson_pack.model_dump()
+        # Defensive: data.reply must NEVER carry the raw LLM JSON when
+        # lesson_pack is set. Otherwise any frontend rendering regression that
+        # drops the lesson_pack branch leaks { "version": "4.0", ... } into
+        # the chat bubble. Recurring bug pattern -- the clarification path
+        # was previously hardened in 9e3e55c; this is the lesson-pack analogue.
+        # Session history (log_session above) still receives the raw JSON for
+        # LLM next-turn context.
+        response["reply"] = f"Lesson Pack ready ({len(lesson_pack.blocks)} blocks)."
 
     return response
 
