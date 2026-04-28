@@ -9,6 +9,7 @@ from classgen.core.models import (
     TeacherNotesBlock,
 )
 from classgen.core.parsers import (
+    parse_clarification,
     parse_lesson_blocks,
     parse_lesson_json,
     parse_lesson_response,
@@ -216,3 +217,76 @@ class TestParseLessonResponse:
         pack, _ = parse_lesson_response(empty_json)
         # No blocks in JSON, no blocks in text → None
         assert pack is None
+
+
+class TestParseClarification:
+    """Cover the V4.1 clarification JSON shape produced when the LLM is
+    missing context (subject / topic / class level). Each case represents
+    a real-world LLM output the parser must classify correctly."""
+
+    def test_well_formed_clarification(self):
+        raw = (
+            '{"clarification": "What class level is this for?",'
+            ' "suggestions": ["JSS1", "JSS2", "SS1"]}'
+        )
+        result = parse_clarification(raw)
+        assert result is not None
+        question, suggestions = result
+        assert question == "What class level is this for?"
+        assert suggestions == ["JSS1", "JSS2", "SS1"]
+
+    def test_clarification_with_code_fence(self):
+        """Some models wrap JSON in ```json ... ``` fences. Strip them."""
+        raw = (
+            "```json\n"
+            '{"clarification": "Which subject?", "suggestions": ["Math", "Biology"]}\n'
+            "```"
+        )
+        result = parse_clarification(raw)
+        assert result == ("Which subject?", ["Math", "Biology"])
+
+    def test_clarification_without_suggestions(self):
+        raw = '{"clarification": "Tell me more about your class."}'
+        result = parse_clarification(raw)
+        assert result == ("Tell me more about your class.", [])
+
+    def test_clarification_with_null_suggestions(self):
+        raw = '{"clarification": "Anything else?", "suggestions": null}'
+        result = parse_clarification(raw)
+        assert result == ("Anything else?", [])
+
+    def test_clarification_strips_blank_suggestions(self):
+        raw = (
+            '{"clarification": "Pick one", '
+            '"suggestions": ["A", "  ", "", "B", null]}'
+        )
+        result = parse_clarification(raw)
+        assert result is not None
+        _, suggestions = result
+        # Only non-empty string suggestions survive
+        assert suggestions == ["A", "B"]
+
+    def test_lesson_pack_json_is_not_clarification(self):
+        """A full LessonPack JSON has no 'clarification' key — must return None."""
+        assert parse_clarification(SAMPLE_LESSON_JSON) is None
+
+    def test_block_marker_text_is_not_clarification(self):
+        assert parse_clarification(SAMPLE_LESSON_BLOCKS) is None
+
+    def test_plain_text_is_not_clarification(self):
+        assert parse_clarification("What class level are we working with?") is None
+
+    def test_malformed_json_returns_none(self):
+        assert parse_clarification("{not valid json") is None
+
+    def test_non_dict_json_returns_none(self):
+        assert parse_clarification('["clarification", "suggestions"]') is None
+
+    def test_empty_clarification_returns_none(self):
+        """A blank or missing clarification field shouldn't be treated as one."""
+        assert parse_clarification('{"clarification": "", "suggestions": ["A"]}') is None
+        assert parse_clarification('{"clarification": "   "}') is None
+        assert parse_clarification('{"suggestions": ["A"]}') is None
+
+    def test_non_string_clarification_returns_none(self):
+        assert parse_clarification('{"clarification": 42, "suggestions": []}') is None

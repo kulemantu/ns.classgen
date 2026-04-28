@@ -116,6 +116,43 @@ def parse_lesson_blocks(raw: str) -> LessonPack | None:
     return LessonPack(blocks=blocks)
 
 
+def parse_clarification(raw: str) -> tuple[str, list[str]] | None:
+    """Detect and parse a clarification JSON response from the LLM.
+
+    The V4.1 JSON system prompt instructs the LLM to request missing context as:
+        {"clarification": "Your question here", "suggestions": ["A", "B", "C"]}
+
+    Returns ``(question, suggestions)`` or ``None`` if the input is not a
+    clarification (e.g. a full lesson pack, plain text, or malformed JSON).
+    """
+    text = raw.strip()
+
+    # Strip markdown code fences if present (mirrors parse_lesson_json)
+    if text.startswith("```"):
+        text = re.sub(r"^```\w*\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+        text = text.strip()
+
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+    if not isinstance(data, dict):
+        return None
+
+    question = data.get("clarification")
+    if not isinstance(question, str) or not question.strip():
+        return None
+
+    raw_suggestions = data.get("suggestions") or []
+    if not isinstance(raw_suggestions, list):
+        raw_suggestions = []
+    suggestions = [s.strip() for s in raw_suggestions if isinstance(s, str) and s.strip()]
+
+    return question.strip(), suggestions
+
+
 def parse_lesson_response(raw: str) -> tuple[LessonPack | None, str]:
     """Try JSON first, fall back to block markers.
 

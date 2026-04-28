@@ -20,7 +20,7 @@ from classgen.content.prompts import (
 )
 from classgen.core.feature_flags import flags
 from classgen.core.models import HomeworkBlock, LessonPack
-from classgen.core.parsers import parse_lesson_response
+from classgen.core.parsers import parse_clarification, parse_lesson_response
 from classgen.data import (
     cache_lesson,
     get_cached_lesson,
@@ -99,6 +99,20 @@ async def _generate_quiz_questions(lesson_content: str) -> list:
     except Exception as e:
         print(f"Error generating quiz: {e}")
     return []
+
+
+def _format_clarification_reply(question: str, suggestions: list[str]) -> str:
+    """Format a clarification question + suggestions as the reply text the
+    web frontend's SUGGESTIONS: regex already understands (``index.html:1136``).
+
+    Caps suggestions at 3 to match the frontend's slice; falls back to a
+    plain question if the suggestion list is empty.
+    """
+    capped = [s for s in suggestions if s][:3]
+    if not capped:
+        return question
+    suggestion_line = " | ".join(f"[{s}]" for s in capped)
+    return f"{question}\n\nSUGGESTIONS: {suggestion_line}"
 
 
 def _parse_lesson_request(msg: str) -> tuple[str, str, str]:
@@ -194,6 +208,16 @@ async def _generate_lesson(
 
     # Parse response (JSON first, block fallback)
     lesson_pack, _ = parse_lesson_response(assistant_reply)
+
+    # Clarification fallback: when the LLM asked for missing context as
+    # {"clarification": "...", "suggestions": [...]}, rewrite the reply into
+    # the SUGGESTIONS: line format the web frontend already renders as buttons.
+    # Without this the user sees raw JSON in the chat.
+    if not lesson_pack:
+        clarification = parse_clarification(assistant_reply)
+        if clarification:
+            question, suggestions = clarification
+            assistant_reply = _format_clarification_reply(question, suggestions)
 
     # Cache if this was a parseable lesson request
     has_blocks = _has_content(assistant_reply, lesson_pack)
@@ -558,9 +582,19 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
         # Parse the complete response
         lesson_pack, _ = parse_lesson_response(full_text)
 
-        # If no blocks were streamed, try fallback
+        # If no blocks were streamed, check whether the LLM asked for
+        # clarification. Emit a dedicated event so frontends can render a
+        # menu instead of raw JSON. Falls back to raw_text otherwise.
         if not accumulator.blocks_emitted:
-            yield _sse_event("fallback", {"raw_text": full_text})
+            clarification = parse_clarification(full_text)
+            if clarification:
+                question, suggestions = clarification
+                yield _sse_event(
+                    "clarification",
+                    {"question": question, "suggestions": suggestions[:3]},
+                )
+            else:
+                yield _sse_event("fallback", {"raw_text": full_text})
 
         # Finalize: PDF + homework code
         try:

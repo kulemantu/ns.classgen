@@ -4,6 +4,7 @@ Tests use the new classgen.* package imports. Patches target the modules
 where the functions are actually USED (the api routers), not where they're defined.
 """
 
+import os
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
@@ -339,3 +340,79 @@ def test_chat_with_registered_teacher(
     assert response.status_code == 200
     mock_check.assert_called_once_with("chat_registered")
     mock_save_code.assert_called_once()
+
+
+# --- Clarification rendering ---
+
+
+@patch("classgen.api.chat.save_homework_code")
+@patch("classgen.api.chat.generate_pdf_from_markdown")
+@patch("classgen.api.chat.log_session")
+@patch("classgen.api.chat.get_session_history", return_value=[])
+@patch("classgen.api.chat.call_openrouter_json", new_callable=AsyncMock)
+def test_chat_clarification_rendered_as_suggestions(
+    mock_llm,
+    mock_hist,
+    mock_log,
+    mock_pdf,
+    mock_save,
+):
+    """When the LLM responds with the V4.1 clarification JSON shape, the
+    blocking endpoint must rewrite ``reply`` into the SUGGESTIONS: format
+    the web frontend already renders as quick-reply buttons. Otherwise the
+    user sees raw JSON in the chat (the production bug we're fixing)."""
+    mock_llm.return_value = (
+        '{"clarification": "What class level is this for?",'
+        ' "suggestions": ["JSS1", "JSS2", "SS1"]}'
+    )
+    with patch.dict(os.environ, {"FF_STRUCTURED_OUTPUT": "true"}, clear=True):
+        response = client.post(
+            "/api/chat",
+            json={"message": "Linear equations", "thread_id": "clarif-thread"},
+        )
+    assert response.status_code == 200
+    data = response.json()
+
+    # No raw JSON braces leaking into the reply
+    assert "{" not in data["reply"]
+    assert '"clarification"' not in data["reply"]
+
+    # Question is preserved + SUGGESTIONS line is present in the format
+    # the existing frontend regex (index.html:1136) understands
+    assert data["reply"].startswith("What class level is this for?")
+    assert "SUGGESTIONS:" in data["reply"]
+    assert "[JSS1]" in data["reply"]
+    assert "[JSS2]" in data["reply"]
+    assert "[SS1]" in data["reply"]
+
+    # No PDF / homework should be generated for a clarification turn
+    assert data["pdf_url"] is None
+    assert data["homework_code"] is None
+    assert "lesson_pack" not in data
+    mock_save.assert_not_called()
+    mock_pdf.assert_not_called()
+
+
+@patch("classgen.api.chat.save_homework_code")
+@patch("classgen.api.chat.generate_pdf_from_markdown")
+@patch("classgen.api.chat.log_session")
+@patch("classgen.api.chat.get_session_history", return_value=[])
+@patch("classgen.api.chat.call_openrouter_json", new_callable=AsyncMock)
+def test_chat_clarification_without_suggestions(
+    mock_llm,
+    mock_hist,
+    mock_log,
+    mock_pdf,
+    mock_save,
+):
+    """A clarification with an empty/missing suggestions array should still
+    render as a clean question — no trailing 'SUGGESTIONS:' line dangling."""
+    mock_llm.return_value = '{"clarification": "Tell me more."}'
+    with patch.dict(os.environ, {"FF_STRUCTURED_OUTPUT": "true"}, clear=True):
+        response = client.post(
+            "/api/chat",
+            json={"message": "?", "thread_id": "clarif-empty"},
+        )
+    data = response.json()
+    assert data["reply"] == "Tell me more."
+    assert "SUGGESTIONS:" not in data["reply"]

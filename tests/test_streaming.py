@@ -373,6 +373,52 @@ class TestStreamEndpoint:
             assert done["data"]["homework_code"] == "CACHED7"
 
 
+    @patch("classgen.api.chat.log_session")
+    @patch("classgen.api.chat.get_session_history", return_value=[])
+    def test_stream_emits_clarification_event(self, mock_hist, mock_log):
+        """When the LLM streams a clarification JSON instead of a lesson pack,
+        the endpoint must emit a dedicated `clarification` SSE event with
+        question + suggestions — not a `fallback` carrying raw JSON. Mirrors
+        the blocking endpoint's reformatting fix for the same bug."""
+        clarification_json = (
+            '{"clarification": "What class level is this for?",'
+            ' "suggestions": ["JSS1", "JSS2", "SS1"]}'
+        )
+
+        async def mock_stream(*args, **kwargs):
+            for ch in clarification_json:
+                yield ch
+
+        with (
+            patch.dict(
+                os.environ,
+                {"FF_SSE_STREAMING": "true", "FF_STRUCTURED_OUTPUT": "true"},
+            ),
+            patch("classgen.api.chat.stream_openrouter", side_effect=mock_stream),
+        ):
+            response = client.post(
+                "/api/chat/stream",
+                json={"message": "Linear equations", "thread_id": "clarif-stream"},
+            )
+            assert response.status_code == 200
+            events = _parse_sse(response.text)
+            event_types = [e["event"] for e in events]
+
+            # No block events (no LessonPack), no fallback (we recognized the shape)
+            assert "block" not in event_types
+            assert "fallback" not in event_types
+
+            # Exactly one clarification event with parsed payload
+            clar_events = [e for e in events if e["event"] == "clarification"]
+            assert len(clar_events) == 1
+            payload = clar_events[0]["data"]
+            assert payload["question"] == "What class level is this for?"
+            assert payload["suggestions"] == ["JSS1", "JSS2", "SS1"]
+
+            # done still terminates the stream
+            assert event_types[-1] == "done"
+
+
 def _parse_sse(text: str) -> list[dict]:
     """Parse SSE text into a list of {event, data} dicts."""
     events = []
