@@ -428,6 +428,8 @@ These modules cut across multiple phases. Building them right avoids rewriting l
 | Real-time collaborative editing | Teachers remix asynchronously. Real-time collab is a different product. |
 | Blockchain/crypto tokens | The trust model uses blockchain principles, not blockchain technology. |
 | Complex gamification | The game IS the homework format (adventures, detective cases), not a separate points/badges system. |
+| Non-English UI / French/Portuguese/Arabic markets | Roadmapped to V5 (see below). The current 14-country English-speaking scope is deliberate — adding French markets without a French interface would ship a half-translated experience. |
+| LLM lesson generation in non-English languages | Roadmapped to V6. V5 ships interface translation only; lesson content generation in non-English languages needs separate prompt + evaluation infrastructure. |
 
 ---
 
@@ -721,6 +723,41 @@ Re-scoped to two phases:
 
 ---
 
+## V5 — Internationalization & Market Expansion
+
+**Goal:** Open ClassGen to non-English-speaking African markets. The current 14-country roster (Kenya, Rwanda, Tanzania, Uganda, Cameroon, Ghana, Nigeria, Botswana, South Africa, Zambia, Zimbabwe, India, UK, US) is English-speaking by intent — lessons, prompts, and UI all assume English. Demos are showing real interest in French, Portuguese, and Arabic markets, so this phase brings the platform to them.
+
+**Sequencing.** US-5.1 (UI translation infrastructure) is a hard prerequisite for US-5.2 (new markets). Adding French countries to the dropdown without French interface strings would ship a half-translated experience that's worse than the current English-only scope.
+
+**Out of scope for V5.** LLM lesson generation in non-English languages is a separate workstream — V5 ships the *interface* in the teacher's language; the *generated lesson content* still arrives in English from the model. Multi-language generation is a V6 concern (model + prompt engineering, glossary terms per curriculum, evaluation pipeline per language).
+
+**[ ] US-5.1: Static UI translation infrastructure**
+- As a Francophone or Lusophone teacher, all interface strings I see — intro slides, terms page, sidebar labels, command help, error messages, WhatsApp welcome, onboarding microcopy — render in my language. The platform detects my locale from my phone country code (or browser `Accept-Language` for web users with no profile yet) and lets me override it from the profile sidebar.
+- Architecture:
+  - Schema: add `locale text NOT NULL DEFAULT 'en'` to `teachers`. Migration `015_add_teacher_locale.sql`.
+  - Catalog: extract every hardcoded UI string into per-locale message files (`src/classgen/i18n/messages/{locale}.json`). Server reads via a `t(key, locale)` helper; frontend reads via `/api/i18n/{locale}` (cached). Start with English as the source-of-truth catalog and stub `fr`, `pt` files.
+  - Detection: extend `PHONE_LOCALES` to cover the new markets. Web fallback uses `Accept-Language` header parsing.
+  - Endpoint: `PATCH /api/teacher/locale` (mirrors `/api/teacher/country`).
+  - Frontend: `<html lang dir>` set per locale; sidebar gains a Language picker beneath Country.
+  - WhatsApp: welcome message + command help + flow prompts all routed through `t()` keyed by `teacher.locale`.
+  - RTL: not needed for French/Portuguese; flagged as US-5.1.RTL prerequisite if Arabic is added to V5.2.
+  - Library choice: Babel server-side (already a dep), lightweight runtime catalog client-side (no React i18n framework — overkill for our string volume).
+  - Coverage gate: a test enumerates every key in `en.json` and asserts every other locale catalog has the same keys (no missing translations slip in silently).
+
+**[ ] US-5.2: Expand country support to non-English markets** *(depends on US-5.1)*
+- As a teacher in Senegal, Ivory Coast, Mozambique, or Egypt, I can register and pick my country from the dropdown, the WhatsApp auto-detect recognizes my phone code, and the entire interface speaks my language.
+- Markets to add (grouped by primary language tier):
+  - **French (West Africa):** Senegal, Ivory Coast, Mali, Burkina Faso, DR Congo, Cameroon-Francophone (note: Cameroon is already in the dropdown — splits into anglophone/francophone via locale).
+  - **Portuguese:** Mozambique, Angola.
+  - **Arabic (RTL):** Egypt, Morocco. Requires US-5.1.RTL.
+  - **Restoration:** Ethiopia (Amharic primary, English in education) and Malawi (English official + Chichewa) re-enter the dropdown once their primary language has a catalog.
+- Architecture:
+  - Migration `016_seed_v5_countries.sql` extends `supported_countries` with the new rows + their region assignments. New "North Africa" region for Egypt/Morocco; existing regions absorb the rest.
+  - Update `i18n.py` `COUNTRY_REGIONS`, `COUNTRY_FLAGS`, `PHONE_COUNTRIES` in lockstep — invariant test (`test_phone_countries_subset_of_dropdown`) catches drift.
+  - "What We Are NOT Building (Yet)" table updated to remove the English-only-scope note.
+
+---
+
 ## Architecture Traceability Matrix
 
 Every user story traces to: schema changes → new/modified modules → endpoints.
@@ -747,6 +784,8 @@ Every user story traces to: schema changes → new/modified modules → endpoint
 | US-4.4.5 | None (reads existing) | `services/analytics.py` | `GET /api/teacher/{phone}/analytics` |
 | US-4.4.6 | None (reads existing) | `services/analytics.py` | `GET /api/school/{slug}/analytics` |
 | US-4.4.7 | None (reads existing) | `services/analytics.py` | `GET /api/analytics/regional` |
+| US-5.1 | `teachers.locale` (add col) | `i18n/messages/{locale}.json` (new), `i18n.py` (t() helper), all UI surfaces (`channels/`, `commands/`, `index.html`, `terms.html`) | `GET /api/i18n/{locale}`, `PATCH /api/teacher/locale` |
+| US-5.2 | `supported_countries` (insert rows; new "North Africa" region) | `i18n.py` (`COUNTRY_REGIONS`, `COUNTRY_FLAGS`, `PHONE_COUNTRIES`), seed migration | `GET /api/teacher/countries` (no shape change) |
 
 ## Migration Sequence
 
@@ -757,9 +796,12 @@ Every user story traces to: schema changes → new/modified modules → endpoint
 | 003 | [x] | `003_add_lesson_json.sql` | V4.1 | Add `lesson_json jsonb` to `homework_codes` and `lesson_cache` |
 | 004 | [x] | `004_add_onboarded_at.sql` | V4.1 | Onboarding consent timestamp on `teachers` |
 | 005 | [x] | `005_add_country.sql` | V4.1 | Teacher country for curriculum-aware prompt injection |
-| 006 | [ ] | `006_add_students.sql` | V4.3 | Create `students` table. Add `student_id` to `quiz_submissions`. |
-| 007 | [ ] | `007_add_community.sql` | V4.3 | Create `community_lessons`, indexes on subject/class/rating. |
-| 008 | [ ] | `008_add_verification.sql` | V4.4 | Create `teacher_verification`, `content_flags`, `lesson_endorsements`. |
+| 006 | [x] | `006_create_supported_countries.sql` | V4.1 | `supported_countries` reference table (name PK, flag, region, sort_order) seeded with the 14 English-speaking markets. |
+| 007 | [ ] | `007_add_students.sql` | V4.3 | Create `students` table. Add `student_id` to `quiz_submissions`. |
+| 008 | [ ] | `008_add_community.sql` | V4.3 | Create `community_lessons`, indexes on subject/class/rating. |
+| 009 | [ ] | `009_add_verification.sql` | V4.4 | Create `teacher_verification`, `content_flags`, `lesson_endorsements`. |
+| 015 | [ ] | `015_add_teacher_locale.sql` | V5 | Add `locale text NOT NULL DEFAULT 'en'` to `teachers` for UI translation. |
+| 016 | [ ] | `016_seed_v5_countries.sql` | V5 | Extend `supported_countries` with French/Portuguese/Arabic markets + new "North Africa" region. |
 
 ---
 
@@ -775,6 +817,12 @@ V4.2  Adventure homework                   ← NEXT: content quality leap
 V4.3  Student identity + community         ← network effects begin
   ↓
 V4.4  Trust network + analytics            ← platform intelligence
+  ↓
+V5    Internationalization & market expansion ← unlock non-English markets
+       (US-5.1 UI translation infra → US-5.2 French/Portuguese/Arabic
+        markets; demos showing real interest)
 ```
+
+**V5 is independent of V4.2–4.5.** It can begin in parallel as soon as the team has bandwidth — none of the V4 features assume English. The strict ordering inside V5 is US-5.1 before US-5.2 (translation infra before adding markets that depend on it).
 
 Each phase is independently deployable. V4.2 onward adds new capabilities.
