@@ -29,6 +29,19 @@ class TestOnboardingConfig:
         assert isinstance(examples, list)
         assert len(examples) == 4
 
+    def test_examples_pair_country_with_flag(self):
+        examples = ONBOARDING["slides"][0]["examples"]
+        flag_for_country = {
+            "Nigeria": "\U0001f1f3\U0001f1ec",
+            "Kenya": "\U0001f1f0\U0001f1ea",
+            "Rwanda": "\U0001f1f7\U0001f1fc",
+            "India": "\U0001f1ee\U0001f1f3",
+        }
+        for country, flag in flag_for_country.items():
+            matches = [ex for ex in examples if country in ex]
+            assert matches, f"no example mentions {country}"
+            assert flag in matches[0], f"{country} example missing flag {flag}"
+
     def test_second_slide_has_features(self):
         features = ONBOARDING["slides"][1]["features"]
         assert isinstance(features, list)

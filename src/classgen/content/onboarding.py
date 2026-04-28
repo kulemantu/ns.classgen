@@ -20,10 +20,13 @@ ONBOARDING = {
                 " exercise-book homework, and teacher notes."
             ),
             "examples": [
-                "SS2, Nigeria, Biology, Photosynthesis, 40 mins",
-                "Form 3, Wave Motion, Physics, Kenya, 1 hour",
-                "History, Rwanda, Senior 4, Colonial Rule in East Africa, 45 mins",
-                "Class 10, India, Quadratic Equations, Maths, 1h 20 mins",
+                "\U0001f1f3\U0001f1ec · SS2, Nigeria, Biology, Photosynthesis, 40 mins",
+                "\U0001f1f0\U0001f1ea · Form 3, Wave Motion, Physics, Kenya, 1 hour",
+                (
+                    "\U0001f1f7\U0001f1fc · History, Rwanda, Senior 4,"
+                    " Colonial Rule in East Africa, 45 mins"
+                ),
+                "\U0001f1ee\U0001f1f3 · Class 10, India, Quadratic Equations, Maths, 1h 20 mins",
             ],
         },
         {
