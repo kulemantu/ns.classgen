@@ -31,7 +31,7 @@ Built for classrooms of 30-60 students with exercise books, pens, and a chalkboa
 | PDF | fpdf2 |
 | i18n | Babel |
 | Payments | Paystack |
-| Frontend | Vanilla JS, Tailwind CDN |
+| Frontend | Hand-written CSS, WhatsApp-inspired theme |
 | Deployment | Docker, Caddy (auto-HTTPS), uv |
 | CI | GitHub Actions (pytest + ruff) |
 

@@ -59,6 +59,10 @@ src/classgen/
 
 Root `main.py` exposes `app` via `from classgen.api.app import app`, and includes an `if __name__ == "__main__"` dev runner block that starts uvicorn with reload enabled when you run `python main.py`. Dockerfile CMD unchanged: `uvicorn main:app`.
 
+### Asset bundles
+
+Web UI CSS and JS live in `assets/app.css` and `assets/app.js` (not inline). At startup, `app.py:_compute_asset_urls()` SHA-256-hashes each file and exposes `/assets/app.<hash>.{css,js}` URLs that `templates/index.html` references via `{{ css_url }}` / `{{ js_url }}`. Hashed asset routes return `Cache-Control: public, max-age=31536000, immutable`; `/` returns `no-cache, must-revalidate` so browsers always pick up new asset hashes via cheap 304s. `GZipMiddleware` compresses responses >1 KB. A small inline `<style>` block in the head ("FOUT shield") sets baseline body font/background so text never flashes in serif before the bundle loads. **Editing `assets/*` requires a uvicorn reload locally and a Docker rebuild for prod.** PDFs still go to `/static/` (volume-mounted); only hashed bundles use `/assets/`.
+
 ### Channels (adapter pattern)
 
 Three delivery channels share the same lesson generation core and command router. Each has a `ChannelAdapter` in `src/classgen/channels/`:
@@ -126,6 +130,17 @@ Host serves `class.dater.world` alongside other `*.dater.world` sites via a shar
 - **Onboarding**: First-visit web users see a 3-slide intro overlay (brand → how it works → features + terms). WhatsApp users get a welcome message and must reply YES. Shared content config in `content/onboarding.py`. Terms page at `/terms`. State: localStorage (`classgen_intro_seen`) + server (`onboarded_at` on teachers table).
 - **Tests mock external services**: `call_openrouter`, Supabase, and Twilio are patched in tests. Patches target `classgen.api.*` modules where functions are used, not where they're defined. `tests/conftest.py` has an autouse fixture that bypasses the onboarding guard — tests that specifically test onboarding mock `is_onboarded` themselves.
 - **Path resolution**: Use `APP_ROOT` env var for project root in Docker. Fallback to `Path(__file__).parents[3]` for local dev with src/ layout.
+
+## Design System
+
+ClassGen's UI is hand-written CSS, no framework. Anyone adding new components should match these constraints:
+
+- **Inspiration: WhatsApp.** Chat-bubble feed, green header (`#008069` light / `#202C33` dark), message group spacing, status indicators. New views should feel like extensions of WhatsApp's IA, not a generic SaaS panel.
+- **Theme tokens.** All colors live in CSS custom properties at `:root` and `[data-theme="dark"]` (`assets/app.css`). Never hard-code colors in components — add a token first, reference it second. Theme bootstrap is the single inline pre-paint script in `templates/index.html`.
+- **Glassmorphism for overlays.** Modals (encyclopedia), the profile sidebar, and the intro slides use translucent backgrounds with `backdrop-filter: blur(...)`. Reuse the existing overlay classes; don't introduce a new modal pattern.
+- **Mobile-first.** Audience is teachers in low-bandwidth contexts on Android. Layout breaks at narrow widths first; desktop is the enhancement. Use `100dvh` on full-screen overlays (mobile-Chrome dynamic-toolbar bug — see memory).
+- **Typography.** DM Serif Display (headings only) + Inter (body), loaded from Google Fonts with `display=swap`. The HTML head includes `preconnect` to `fonts.gstatic.com` and a small inline FOUT shield so text never falls back to serif while CSS loads. No additional families.
+- **No utility-class fluency expected.** This is not a Tailwind project. Components use semantic class names; styles live in `assets/app.css`.
 
 ## Environment
 
