@@ -152,6 +152,32 @@ Summary: Quick reference for the teacher
 Details: EXPECTED ANSWERS: 18 CO2 molecules. COMMON MISTAKES: Confusing absorption vs release. QUICK CHECK: Can the student explain why covering a plant kills it?
 [BLOCK_END]"""
 
+# --- Real LLM output observed in 2026-04-28 perf bench: legacy text path,
+# LLM emitted Title:/Summary:/Details: triples but DROPPED the
+# [BLOCK_START_X]/[BLOCK_END] outer markers. Caused silent lesson loss
+# (no PDF, no homework code) until recovery parser landed.
+
+BROKEN_LESSON_NO_MARKERS = """Title: Your Body's Secret Duplication Machine
+Summary: Riddle to spark curiosity about growth
+Details: "Good morning, class! Raise your hand if you've ever wondered why a tiny baby grows into a tall teenager like you. Here's a riddle: I start as one, become two, then four, eight - I'm the reason you grew from a single cell. What am I? By the end of this lesson, you'll shout the answer: Mitosis! Write that word in your books now."
+
+Title: Unpacking Mitosis: The Cell's Cloning Process
+Summary: Mitosis is how one parent cell divides to make two identical daughter cells, essential for growth, repair, and replacing old cells.
+Details: "Mitosis happens in body cells - not sex cells - and keeps everything identical, like photocopying a page perfectly. Surprise: your body performs about 2 trillion mitoses every single day."
+
+Title: Mitosis Stage Dash Relay
+Summary: Groups of 5 relay race to draw and label stages -- 15 minutes
+Details: "Divide into 6-12 groups of 5 students each. Student 1 runs to board, copies one stage name, returns and draws it. First group to complete all 5 labelled drawings wins."
+
+Title: Cell Repair Detective: Solve the Knee Scrape Mystery
+Summary: Detective case -- students analyze evidence from a scraped knee
+Details: "You're Detective Cell, investigating a scraped knee. In your exercise book, write a 'Detective Report' (1 page): list which stage each evidence matches and why."
+
+Title: Teacher Notes
+Summary: Quick reference for the teacher
+Details: "EXPECTED ANSWERS: Pro: thick chromosomes; Meta: equator line; Ana: pulling apart; Telo: two nuclei. COMMON MISTAKES: Mixing mitosis/meiosis. QUICK CHECK: Name the stage where chromosomes line up like soldiers."
+"""
+
 # --- Legacy format with OLD block names (from test_main.py) ---
 
 SAMPLE_LESSON_OLD_NAMES = """[BLOCK_START_HOOK]

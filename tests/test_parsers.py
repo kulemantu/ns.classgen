@@ -15,6 +15,7 @@ from classgen.core.parsers import (
     parse_lesson_response,
 )
 from tests.fixtures import (
+    BROKEN_LESSON_NO_MARKERS,
     SAMPLE_LESSON_BLOCKS,
     SAMPLE_LESSON_JSON,
     SAMPLE_LESSON_OLD_NAMES,
@@ -290,3 +291,101 @@ class TestParseClarification:
 
     def test_non_string_clarification_returns_none(self):
         assert parse_clarification('{"clarification": 42, "suggestions": []}') is None
+
+
+class TestNoMarkersRecovery:
+    """The LLM occasionally emits Title:/Summary:/Details: triples without the
+    surrounding [BLOCK_START_X]/[BLOCK_END] markers. Before the recovery
+    parser, this caused silent lesson loss (no PDF, no homework code).
+    Captured from real prod-shape output in 2026-04-28 perf bench."""
+
+    def test_real_broken_response_recovers_five_blocks(self):
+        """The exact text the LLM returned for 'SS2 Biology: Mitosis' in
+        scenario A run 1 — a complete lesson with all 5 sections but no
+        outer markers. Should recover all 5 blocks in correct order."""
+        pack, raw = parse_lesson_response(BROKEN_LESSON_NO_MARKERS)
+        assert pack is not None, "recovery parser should not return None for clean Title-shape text"
+        assert len(pack.blocks) == 5
+        assert raw == BROKEN_LESSON_NO_MARKERS
+
+        # Positional type assignment matches the system prompt's block order
+        types = [type(b).__name__ for b in pack.blocks]
+        assert types == [
+            "OpenerBlock",
+            "ExplainBlock",
+            "ActivityBlock",
+            "HomeworkBlock",
+            "TeacherNotesBlock",
+        ]
+
+        # Titles preserved verbatim
+        assert pack.blocks[0].title == "Your Body's Secret Duplication Machine"
+        assert pack.blocks[1].title == "Unpacking Mitosis: The Cell's Cloning Process"
+        assert pack.blocks[4].title == "Teacher Notes"
+
+        # Summary + Details collapsed into body
+        assert "Riddle to spark curiosity" in pack.blocks[0].body
+        assert "Detective Cell" in pack.blocks[3].body
+
+    def test_single_section_recovers_as_opener(self):
+        text = (
+            "Title: Solo Lesson\n"
+            "Summary: Just one section here\n"
+            "Details: A short detail line.\n"
+        )
+        pack, _ = parse_lesson_response(text)
+        assert pack is not None
+        assert len(pack.blocks) == 1
+        assert type(pack.blocks[0]).__name__ == "OpenerBlock"
+        assert pack.blocks[0].title == "Solo Lesson"
+
+    def test_caps_at_five_sections(self):
+        """If the LLM emits 7 sections, only the first 5 are kept (matches
+        the system prompt's block sequence)."""
+        text = "\n\n".join(
+            [
+                f"Title: Section {i}\nSummary: s{i}\nDetails: d{i}\n"
+                for i in range(7)
+            ]
+        )
+        pack, _ = parse_lesson_response(text)
+        assert pack is not None
+        assert len(pack.blocks) == 5
+
+    def test_real_block_markers_still_take_precedence(self):
+        """Recovery must NOT fire when valid [BLOCK_START_X] markers exist —
+        otherwise we'd double-process every existing legacy lesson."""
+        pack, _ = parse_lesson_response(SAMPLE_LESSON_BLOCKS)
+        assert pack is not None
+        assert len(pack.blocks) == 5
+        # Real blocks expose the actual title verbatim, not a recovery default
+        assert pack.blocks[0].title == "What if photosynthesis stopped tomorrow?"
+
+    def test_json_pack_still_takes_precedence(self):
+        pack, _ = parse_lesson_response(SAMPLE_LESSON_JSON)
+        assert pack is not None
+        assert len(pack.blocks) == 5
+
+    def test_plain_prose_returns_none(self):
+        """Truly content-free text shouldn't trick the recovery parser."""
+        pack, _ = parse_lesson_response("I don't know what subject you mean. Could you clarify?")
+        assert pack is None
+
+    def test_clarification_json_not_misclassified(self):
+        """The clarification JSON shape from the JSON prompt must NOT be
+        recovered as a 1-block lesson (separately handled by parse_clarification)."""
+        clar = '{"clarification": "What class level?", "suggestions": ["JSS1", "JSS2"]}'
+        pack, _ = parse_lesson_response(clar)
+        assert pack is None
+
+    def test_section_with_missing_summary_still_recovers(self):
+        """Title + Details only (Summary missing) — should still recover."""
+        text = (
+            "Title: First Block\n"
+            "Details: Only details here.\n"
+        )
+        pack, _ = parse_lesson_response(text)
+        assert pack is not None
+        assert len(pack.blocks) == 1
+        assert "Only details here" in pack.blocks[0].body
+

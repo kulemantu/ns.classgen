@@ -435,3 +435,47 @@ def test_chat_clarification_without_suggestions(
     data = response.json()
     assert data["reply"] == "Tell me more."
     assert "SUGGESTIONS:" not in data["reply"]
+
+
+# --- Empty-content recovery (no-markers fallback) ---
+
+
+@patch("classgen.api.chat.save_homework_code")
+@patch("classgen.api.chat.generate_homework_code", return_value="MITO42")
+@patch("classgen.api.chat.generate_pdf_from_markdown", return_value="lesson_recovered.pdf")
+@patch("classgen.api.chat.log_session")
+@patch("classgen.api.chat.get_session_history", return_value=[])
+@patch("classgen.api.chat.call_openrouter", new_callable=AsyncMock)
+def test_chat_recovers_lesson_when_llm_omits_block_markers(
+    mock_llm,
+    mock_hist,
+    mock_log,
+    mock_pdf,
+    mock_code,
+    mock_save,
+):
+    """Production observation 2026-04-28: with FF_STRUCTURED_OUTPUT=false the
+    LLM occasionally drops [BLOCK_START_X]/[BLOCK_END] markers but still emits
+    Title:/Summary:/Details: triples. Before the recovery parser this caused
+    silent lesson loss (no PDF, no homework code). Mock the LLM to emit the
+    real captured broken response and assert the chat endpoint still produces
+    a PDF + homework code + lesson_pack."""
+    from tests.fixtures import BROKEN_LESSON_NO_MARKERS
+
+    mock_llm.side_effect = [BROKEN_LESSON_NO_MARKERS, "[]"]  # 2nd call = quiz
+    with patch.dict(os.environ, {}, clear=True):  # flags off
+        response = client.post(
+            "/api/chat",
+            json={"message": "SS2 Biology: Mitosis", "thread_id": "recov-thread"},
+        )
+    assert response.status_code == 200
+    data = response.json()
+
+    # The PERF-bench bug: pdf_url and homework_code were both None despite a
+    # full lesson in data.reply. After the fix, both are populated.
+    assert data["pdf_url"] == "/static/lesson_recovered.pdf"
+    assert data["homework_code"] == "MITO42"
+
+    # PDF generation and homework save both fired (not skipped via has_content)
+    mock_pdf.assert_called_once()
+    mock_save.assert_called_once()

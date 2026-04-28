@@ -50,6 +50,12 @@ _FIELD_RE = re.compile(
     re.DOTALL,
 )
 
+# Recovery parser positional types — when [BLOCK_START_X] markers are missing,
+# we fall back to assigning sections by order matching the system prompt's
+# 5-block structure.
+_RECOVERY_BLOCK_TYPES = ["opener", "explain", "activity", "homework", "teacher_notes"]
+_TITLE_LINE_RE = re.compile(r"^Title:\s*", re.MULTILINE)
+
 
 def parse_lesson_json(raw: str) -> LessonPack | None:
     """Parse a JSON string into a LessonPack. Returns None on failure."""
@@ -116,6 +122,46 @@ def parse_lesson_blocks(raw: str) -> LessonPack | None:
     return LessonPack(blocks=blocks)
 
 
+def _recover_blocks_no_markers(raw: str) -> LessonPack | None:
+    """Recover a LessonPack when the LLM emitted ``Title:/Summary:/Details:``
+    triples but dropped the surrounding ``[BLOCK_START_X]...[BLOCK_END]``
+    markers. Used as a last-resort fallback in ``parse_lesson_response``.
+
+    Splits the text on each ``Title:`` line and treats the resulting sections
+    as blocks in positional order matching the system prompt's block sequence
+    (opener, explain, activity, homework, teacher_notes). Caps at 5 sections;
+    returns ``None`` if no valid section is found.
+    """
+    title_positions = [m.start() for m in _TITLE_LINE_RE.finditer(raw)]
+    if not title_positions:
+        return None
+
+    title_positions.append(len(raw))
+    blocks = []
+    for i, start in enumerate(title_positions[:-1]):
+        if i >= len(_RECOVERY_BLOCK_TYPES):
+            break
+        section = raw[start : title_positions[i + 1]].strip()
+        field_match = _FIELD_RE.search(section)
+        if not field_match:
+            continue
+        title = field_match.group(1).strip()
+        summary = (field_match.group(2) or "").strip()
+        details = (field_match.group(3) or "").strip()
+        body = f"{summary}\n\n{details}".strip() if summary else details
+        if not title:
+            continue
+        cls = _BLOCK_CLASS_MAP[_RECOVERY_BLOCK_TYPES[i]]
+        blocks.append(cls(title=title, body=body))
+
+    if not blocks:
+        return None
+
+    # Surfaces in production logs so we can monitor recovery frequency.
+    print(f"[recovery] no-markers fallback fired blocks={len(blocks)}", flush=True)
+    return LessonPack(blocks=blocks)
+
+
 def parse_clarification(raw: str) -> tuple[str, list[str]] | None:
     """Detect and parse a clarification JSON response from the LLM.
 
@@ -154,7 +200,8 @@ def parse_clarification(raw: str) -> tuple[str, list[str]] | None:
 
 
 def parse_lesson_response(raw: str) -> tuple[LessonPack | None, str]:
-    """Try JSON first, fall back to block markers.
+    """Try JSON first, fall back to block markers, last-resort recover from
+    no-markers Title/Summary/Details text.
 
     Returns ``(lesson_pack, raw_text)``. The raw text is always preserved
     for backward compatibility and storage.
@@ -166,4 +213,10 @@ def parse_lesson_response(raw: str) -> tuple[LessonPack | None, str]:
 
     # Fall back to legacy block markers
     pack = parse_lesson_blocks(raw)
+    if pack:
+        return pack, raw
+
+    # Last resort: LLM dropped the [BLOCK_START_X] markers but kept the
+    # Title:/Summary:/Details: structure. Recover positionally.
+    pack = _recover_blocks_no_markers(raw)
     return pack, raw
