@@ -838,8 +838,23 @@ Re-scoped to two phases:
   - Schema: extend the chat clarification response with a `body_format: "markdown"` flag (or default to markdown when `FF_STRUCTURED_OUTPUT` is on); add an optional `inline_options: list[str]` field for non-CTA pick chips (e.g. topic suggestions) rendered inside the bubble as horizontal pills, distinct from `suggestions` (which advance the flow as full-width buttons).
   - Prompt: tighten `CLASSGEN_JSON_SYSTEM_PROMPT` so the LLM emits lists as markdown bullets in `message`, and routes pick-from-N options to `inline_options` rather than ad-hoc `[brackets]` in prose.
   - Frontend: small markdown subset renderer in `assets/app.js` (~1 KB target — bullets, bold, italic, links; stay vanilla per Design System, no marked.js / snarkdown dep). Reuse existing `escapeHtml()` for safety. Reuse the existing `.markdown-body` CSS in `assets/app.css` (currently scoped to the encyclopedia modal) for chat bubbles by widening the selector or adding a sibling `.bubble-markdown` class.
-  - WhatsApp: render markdown to plain text via the channel adapter — asterisks for bold are already WhatsApp-native; bullets become `- ` lines. `inline_options` become a numbered list ("Reply 1, 2, 3 to pick").
-  - Tests: render fixtures in `tests/test_main.py` covering markdown-bullet and inline-options paths; parity test under `.mock/e2e/` confirming the same clarification renders correctly in both web and WhatsApp adapters.
+  - **WhatsApp channel adapter — markdown→WhatsApp transform is NOT a pass-through.** The two flavours diverge on every emphasis marker and on list semantics. The adapter (`src/classgen/channels/whatsapp.py`) owns this conversion before sending to Twilio:
+    | Construct | Markdown | WhatsApp | Adapter action |
+    |---|---|---|---|
+    | Bold | `**text**` | `*text*` | strip one asterisk per side |
+    | Italic | `*text*` or `_text_` | `_text_` | normalize to `_..._` |
+    | Strikethrough | `~~text~~` | `~text~` | strip one tilde per side |
+    | Inline code | `` `text` `` | `` `text` `` | pass through |
+    | Code fence | ` ``` ... ``` ` | ` ``` ... ``` ` | pass through |
+    | Heading (`#`, `##`, …) | rendered | not supported | drop hashes, wrap line in `*...*` (bold-line surrogate), keep blank line below |
+    | Root-level bullet | `- item` or `* item` | `- item` | normalize all bullets to `-` (WA does not render `*` as a bullet — that's italic) |
+    | Sub-bullet / nested list | indented `  - item` | not rendered | flatten to root level prefixed with ` — ` (em-dash continuation) so visual hierarchy survives without indentation |
+    | Link | `[text](url)` | not parsed | render as `text: url`; if `text == url`, emit only the URL so WA auto-links it cleanly |
+  - `inline_options` become a numbered list ("Reply 1, 2, 3 to pick"); option text passes through the same markdown→WhatsApp transformer for consistency with the surrounding prose.
+  - Tests:
+    - render fixtures in `tests/test_main.py` covering markdown-bullet and inline-options paths on the web adapter
+    - per-construct unit tests for the WhatsApp transformer covering each row of the table above (no leaked `**`, no orphan link syntax, sub-bullets flattened, headings still readable)
+    - parity test under `.mock/e2e/` confirming the same clarification renders correctly in both web and WhatsApp adapters — *not* by string equality but by checking each renders the same *information* in its native flavour
 - Flag-gate behind a new `FF_MARKDOWN_BUBBLES` so we can roll out incrementally and roll back without touching code.
 
 ---
