@@ -10,11 +10,14 @@ from __future__ import annotations
 import json
 import re
 
+from pydantic import ValidationError
+
 from classgen.content.prompts import BLOCK_PATTERN
 from classgen.core.models import (
     ActivityBlock,
     ExplainBlock,
     HomeworkBlock,
+    LessonMeta,
     LessonPack,
     OpenerBlock,
     TeacherNotesBlock,
@@ -77,8 +80,60 @@ def parse_lesson_json(raw: str) -> LessonPack | None:
 
     try:
         return LessonPack.model_validate(data)
+    except ValidationError:
+        # One bad block would otherwise reject the whole pack — try to keep
+        # the good ones. See _salvage_lesson_json for the per-block recovery.
+        return _salvage_lesson_json(data)
     except Exception:
         return None
+
+
+def _salvage_lesson_json(data: dict) -> LessonPack | None:
+    """Best-effort per-block recovery when full LessonPack validation fails.
+
+    Validates each block independently against its concrete class. Drops only
+    the bad ones. Returns ``None`` if no block survives, so callers can fall
+    through to the legacy block-marker / no-markers parsers.
+    """
+    blocks_raw = data.get("blocks")
+    if not isinstance(blocks_raw, list):
+        return None
+
+    survivors: list = []
+    dropped = 0
+    for block in blocks_raw:
+        if not isinstance(block, dict):
+            dropped += 1
+            continue
+        cls = _BLOCK_CLASS_MAP.get(block.get("type", ""))
+        if not cls:
+            dropped += 1
+            continue
+        try:
+            survivors.append(cls.model_validate(block))
+        except ValidationError:
+            dropped += 1
+
+    if not survivors:
+        return None
+
+    # Surfaces in production logs so we can monitor salvage frequency.
+    print(
+        f"[salvage] dropped {dropped} invalid block(s), kept {len(survivors)}",
+        flush=True,
+    )
+
+    meta_raw = data.get("meta")
+    try:
+        meta = LessonMeta.model_validate(meta_raw) if isinstance(meta_raw, dict) else LessonMeta()
+    except ValidationError:
+        meta = LessonMeta()
+
+    return LessonPack(
+        version=data.get("version", "4.0"),
+        meta=meta,
+        blocks=survivors,
+    )
 
 
 def parse_lesson_blocks(raw: str) -> LessonPack | None:

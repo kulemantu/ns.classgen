@@ -15,6 +15,8 @@ from classgen.core.parsers import (
     parse_lesson_response,
 )
 from tests.fixtures import (
+    BROKEN_LESSON_MISSING_TITLE,
+    BROKEN_LESSON_MISSING_TITLE_DICT,
     BROKEN_LESSON_NO_MARKERS,
     SAMPLE_LESSON_BLOCKS,
     SAMPLE_LESSON_JSON,
@@ -388,4 +390,186 @@ class TestNoMarkersRecovery:
         assert pack is not None
         assert len(pack.blocks) == 1
         assert "Only details here" in pack.blocks[0].body
+
+
+class TestTitleDefaults:
+    """Layer 1: LessonPack model_validator fills missing/empty `title` fields
+    with humanized type names. Defends against the recurring LLM imperfection
+    where one block elides title and breaks the whole pack."""
+
+    def test_missing_title_filled_with_type_name(self):
+        data = {
+            "blocks": [
+                {"type": "explain", "body": "Photosynthesis is how plants make food."},
+            ]
+        }
+        pack = LessonPack.model_validate(data)
+        assert len(pack.blocks) == 1
+        assert pack.blocks[0].title == "Explain"
+
+    def test_empty_title_filled_with_type_name(self):
+        data = {
+            "blocks": [
+                {"type": "activity", "title": "", "body": "Group relay race."},
+            ]
+        }
+        pack = LessonPack.model_validate(data)
+        assert pack.blocks[0].title == "Activity"
+
+    def test_teacher_notes_default_unchanged(self):
+        # TeacherNotesBlock has its own field default `title="Teacher Notes"`.
+        # The validator should still humanize from type if title is missing,
+        # but the existing default is also acceptable. This pins the result.
+        data = {"blocks": [{"type": "teacher_notes"}]}
+        pack = LessonPack.model_validate(data)
+        assert pack.blocks[0].title == "Teacher Notes"
+
+    def test_homework_underscore_type_humanized(self):
+        # type with underscore must humanize via underscore-to-space.
+        # No homework block has underscore in canonical types but teacher_notes does.
+        data = {"blocks": [{"type": "teacher_notes", "title": ""}]}
+        pack = LessonPack.model_validate(data)
+        assert pack.blocks[0].title == "Teacher Notes"
+
+    def test_well_formed_titles_unchanged(self):
+        data = {
+            "blocks": [
+                {"type": "opener", "title": "Catchy Hook", "body": "..."},
+                {"type": "explain", "title": "Concept", "body": "..."},
+            ]
+        }
+        pack = LessonPack.model_validate(data)
+        assert pack.blocks[0].title == "Catchy Hook"
+        assert pack.blocks[1].title == "Concept"
+
+    def test_real_broken_lesson_recovers_via_dict(self):
+        """The actual /tmp/inv-2.json payload — explain block missing title."""
+        pack = LessonPack.model_validate(BROKEN_LESSON_MISSING_TITLE_DICT)
+        assert len(pack.blocks) == 5
+        # blocks[1] is the previously-broken explain block
+        assert pack.blocks[1].title == "Explain"
+        assert isinstance(pack.blocks[1], ExplainBlock)
+        # Other titles preserved verbatim
+        assert pack.blocks[0].title == "The Thirsty Tree Challenge"
+        assert pack.blocks[2].title == "Transport Relay Race"
+
+    def test_real_broken_lesson_via_json_string(self):
+        """End-to-end through parse_lesson_json with the captured payload."""
+        pack = parse_lesson_json(BROKEN_LESSON_MISSING_TITLE)
+        assert pack is not None
+        assert len(pack.blocks) == 5
+        assert pack.blocks[1].title == "Explain"
+
+
+class TestBlockSalvage:
+    """Layer 2: per-block salvage in parse_lesson_json. When the full pack
+    fails Pydantic validation, validate each block independently and keep the
+    survivors. One bad block costs 1/N of the lesson, not the whole thing."""
+
+    def _build_pack(self, blocks: list[dict]) -> str:
+        import json as _json
+        return _json.dumps(
+            {
+                "version": "4.0",
+                "meta": {"subject": "Biology", "topic": "Test", "class_level": "SS2"},
+                "blocks": blocks,
+            }
+        )
+
+    def test_one_bad_block_others_survive(self):
+        """Quiz with correct=5 (out of range 0-3) drops only that block."""
+        blocks = [
+            {"type": "opener", "title": "Hook", "body": "..."},
+            {"type": "explain", "title": "Concept", "body": "..."},
+            {"type": "activity", "title": "Game", "body": "..."},
+            {
+                "type": "homework",
+                "title": "HW",
+                "quiz": [
+                    {
+                        "question": "Q?",
+                        "options": ["A", "B", "C", "D"],
+                        "correct": 5,  # out of range
+                    },
+                ],
+            },
+            {"type": "teacher_notes"},
+        ]
+        pack = parse_lesson_json(self._build_pack(blocks))
+        assert pack is not None
+        # Homework block dropped; others survive
+        assert len(pack.blocks) == 4
+        types = [b.type for b in pack.blocks]
+        assert types == ["opener", "explain", "activity", "teacher_notes"]
+
+    def test_unknown_block_type_dropped(self):
+        blocks = [
+            {"type": "opener", "title": "Hook", "body": "..."},
+            {"type": "bogus_type", "title": "X", "body": "Y"},
+            {"type": "activity", "title": "Game", "body": "..."},
+        ]
+        pack = parse_lesson_json(self._build_pack(blocks))
+        assert pack is not None
+        assert len(pack.blocks) == 2
+        assert {b.type for b in pack.blocks} == {"opener", "activity"}
+
+    def test_all_blocks_invalid_returns_none(self):
+        """No survivors → return None so caller falls through to other parsers."""
+        import json as _json
+        raw = _json.dumps({"blocks": [{"type": "bogus_a"}, {"type": "bogus_b"}]})
+        pack = parse_lesson_json(raw)
+        assert pack is None
+
+    def test_meta_validation_failure_uses_default(self):
+        """If meta is malformed but blocks are fine, salvage uses LessonMeta()."""
+        import json as _json
+        # duration_minutes as a non-integer string — fails LessonMeta validation
+        raw = _json.dumps(
+            {
+                "version": "4.0",
+                "meta": {"duration_minutes": "not a number"},
+                "blocks": [
+                    {"type": "opener", "title": "Hook", "body": "..."},
+                    # This block's missing field would normally pass via Layer 1,
+                    # so we add a real block-level validity issue to force salvage:
+                    {
+                        "type": "homework",
+                        "title": "HW",
+                        "quiz": [
+                            {
+                                "question": "Q?",
+                                "options": ["A", "B", "C", "D"],
+                                "correct": 99,
+                            },
+                        ],
+                    },
+                ],
+            }
+        )
+        pack = parse_lesson_json(raw)
+        assert pack is not None
+        # Homework block dropped, opener survives, meta defaults to LessonMeta()
+        assert len(pack.blocks) == 1
+        assert pack.blocks[0].type == "opener"
+        # default duration_minutes is 40
+        assert pack.meta.duration_minutes == 40
+
+    def test_salvage_does_not_run_on_well_formed_json(self):
+        """Sanity: well-formed lessons go through the fast path, not salvage."""
+        pack = parse_lesson_json(SAMPLE_LESSON_JSON)
+        assert pack is not None
+        assert len(pack.blocks) == 5
+        # If we got here, salvage was not needed.
+
+    def test_block_with_wrong_type_for_field_dropped(self):
+        """Block whose nested field has wrong type gets dropped."""
+        blocks = [
+            {"type": "opener", "title": "Hook", "body": "..."},
+            # duration_minutes must be int; passing a list makes Pydantic reject this block
+            {"type": "explain", "title": "C", "body": "B", "key_terms": "not a list"},
+        ]
+        pack = parse_lesson_json(self._build_pack(blocks))
+        assert pack is not None
+        assert len(pack.blocks) == 1
+        assert pack.blocks[0].type == "opener"
 

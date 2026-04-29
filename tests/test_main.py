@@ -605,3 +605,68 @@ def test_chat_clarification_reply_unchanged_by_sanitization(mock_llm, mock_hist,
     assert "Lesson Pack ready" not in data["reply"]
     assert "What class level?" in data["reply"]
     assert "SUGGESTIONS:" in data["reply"]
+
+
+# --- Pydantic-strictness fix (Stream E): missing-title block recovers ---
+
+
+@patch("classgen.api.chat.save_homework_code")
+@patch("classgen.api.chat.generate_homework_code", return_value="TXP9LR")
+@patch("classgen.api.chat.PDFAdapter")
+@patch("classgen.api.chat.get_cached_lesson", return_value=None)
+@patch("classgen.api.chat.log_session")
+@patch("classgen.api.chat.get_session_history", return_value=[])
+@patch("classgen.api.chat.call_openrouter_json", new_callable=AsyncMock)
+def test_chat_recovers_lesson_when_block_missing_title(
+    mock_llm,
+    mock_hist,
+    mock_log,
+    mock_cached,
+    mock_pdf_adapter,
+    mock_code,
+    mock_save,
+):
+    """Production observation 2026-04-29 (third instance of raw JSON in chat):
+    LLM returned a well-formed lesson except blocks[1] (explain) was missing
+    `title`. Pydantic strict validation rejected the whole pack, lesson_pack
+    was None, Stream D's sanitization branch was dead, and data.reply leaked
+    raw JSON to the chat bubble. After Layer 1+2 the model_validator fills
+    the missing title with 'Explain', validation passes, lesson_pack is
+    populated, and Stream D sanitizes data.reply."""
+    from tests.fixtures import BROKEN_LESSON_MISSING_TITLE
+
+    mock_llm.return_value = BROKEN_LESSON_MISSING_TITLE
+    mock_pdf_adapter.return_value.render_lesson.return_value = "lesson_recovered.pdf"
+
+    with patch.dict(os.environ, {"FF_STRUCTURED_OUTPUT": "true"}, clear=True):
+        response = client.post(
+            "/api/chat",
+            json={
+                "message": "SS2 Biology in Kenya, Transport in Plants and Animals",
+                "thread_id": "missing-title-recov",
+            },
+        )
+    assert response.status_code == 200
+    data = response.json()
+
+    # The bug: lesson_pack was missing entirely. After fix: 5 blocks.
+    assert "lesson_pack" in data
+    assert len(data["lesson_pack"]["blocks"]) == 5
+
+    # blocks[1] is the previously-broken explain block; title now defaults to 'Explain'.
+    assert data["lesson_pack"]["blocks"][1]["type"] == "explain"
+    assert data["lesson_pack"]["blocks"][1]["title"] == "Explain"
+
+    # PDF + homework code are now present (were both None before fix).
+    assert data["pdf_url"] == "/static/lesson_recovered.pdf"
+    assert data["homework_code"] == "TXP9LR"
+    mock_save.assert_called_once()
+
+    # Stream D's sanitization fires: data.reply is the human-readable summary,
+    # not the raw LLM JSON that was leaking before.
+    reply = data["reply"]
+    assert not reply.lstrip().startswith("{"), (
+        f"data.reply leaked raw JSON after Layer 1 fix: {reply[:80]!r}"
+    )
+    assert "Lesson Pack ready" in reply
+    assert "5" in reply

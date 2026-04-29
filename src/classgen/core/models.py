@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # ---------------------------------------------------------------------------
 # Supporting types
@@ -43,7 +43,7 @@ class HomeworkTask(BaseModel):
 
 class OpenerBlock(BaseModel):
     type: Literal["opener"] = "opener"
-    title: str
+    title: str = ""
     body: str
     format: str = ""  # what_if | demonstration | challenge | story_cold_open
     duration_minutes: int = 2
@@ -52,7 +52,7 @@ class OpenerBlock(BaseModel):
 
 class ExplainBlock(BaseModel):
     type: Literal["explain"] = "explain"
-    title: str
+    title: str = ""
     body: str
     wow_fact: str = ""
     analogy: str = ""
@@ -62,7 +62,7 @@ class ExplainBlock(BaseModel):
 
 class ActivityBlock(BaseModel):
     type: Literal["activity"] = "activity"
-    title: str
+    title: str = ""
     body: str
     format: str = ""  # relay_race | group_challenge | debate | etc.
     group_size: int = 5
@@ -74,7 +74,7 @@ class ActivityBlock(BaseModel):
 
 class HomeworkBlock(BaseModel):
     type: Literal["homework"] = "homework"
-    title: str
+    title: str = ""
     body: str = ""
     format: str = ""  # adventure | investigation | creative | etc.
     narrative: str = ""
@@ -122,3 +122,22 @@ class LessonPack(BaseModel):
     version: str = "4.0"
     meta: LessonMeta = Field(default_factory=LessonMeta)
     blocks: list[Block] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_missing_titles(cls, data):
+        # LLMs occasionally elide `title` on a block when surrounding context
+        # (type + body) makes it feel redundant. One missing field would
+        # otherwise reject the entire pack via discriminated-union validation.
+        if not isinstance(data, dict):
+            return data
+        blocks = data.get("blocks")
+        if not isinstance(blocks, list):
+            return data
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            if not block.get("title"):
+                btype = block.get("type", "")
+                block["title"] = btype.replace("_", " ").title() if btype else "Block"
+        return data

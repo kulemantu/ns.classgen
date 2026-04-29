@@ -228,6 +228,11 @@ IMPORTANT CONTENT RULES:
 
 CRITICAL: The "quiz" array inside the homework block MUST contain exactly 5 multiple-choice questions based on the lesson content. Each question has 4 options. "correct" is the zero-based index (0=A, 1=B, 2=C, 3=D). Include a brief "explanation" for each.
 
+CRITICAL FIELD REQUIREMENTS:
+- Every block MUST include both `type` and `title` (non-empty strings).
+- Block `type` MUST be one of: opener, explain, activity, homework, teacher_notes.
+- Each quiz question MUST have exactly 4 options and a `correct` index in [0, 3].
+
 Return ONLY the JSON object. No markdown fences, no explanation text, no commentary."""
 
 QUIZ_GENERATION_PROMPT = """You are a quiz generator. Given lesson content, generate exactly 5 multiple-choice questions.

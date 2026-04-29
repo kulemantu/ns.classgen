@@ -178,6 +178,128 @@ Summary: Quick reference for the teacher
 Details: "EXPECTED ANSWERS: Pro: thick chromosomes; Meta: equator line; Ana: pulling apart; Telo: two nuclei. COMMON MISTAKES: Mixing mitosis/meiosis. QUICK CHECK: Name the stage where chromosomes line up like soldiers."
 """
 
+# --- Captured 2026-04-29 from /api/chat: SS2 Biology, "Transport in Plants
+# and Animals". The 'explain' block is MISSING its 'title' field; before the
+# Layer 1+2 fix this caused Pydantic to reject the whole pack, falling
+# through to no lesson_pack + raw JSON in chat.
+
+BROKEN_LESSON_MISSING_TITLE_DICT = {
+    "version": "4.0",
+    "meta": {
+        "subject": "Biology",
+        "topic": "Transport in Plants and Animals",
+        "class_level": "SS2 (Form 2 KNEC)",
+        "exam_board": "KNEC",
+        "duration_minutes": 40,
+        "language": "en",
+        "bilingual": None,
+    },
+    "blocks": [
+        {
+            "type": "opener",
+            "title": "The Thirsty Tree Challenge",
+            "body": (
+                "Imagine a giant baobab tree in the hot savanna. Its roots are deep "
+                "in dry soil, but its leaves are high up, desperate for water. How "
+                "does that water climb all the way up without a pump?"
+            ),
+            "format": "what_if",
+            "duration_minutes": 2,
+            "props": [],
+        },
+        # The bug: this 'explain' block has NO 'title' field.
+        {
+            "type": "explain",
+            "body": (
+                "Class, transport is how plants and animals move water, food, and "
+                "oxygen around their bodies. In plants, xylem vessels carry water "
+                "and minerals from roots up to leaves."
+            ),
+            "wow_fact": "A corn plant transpires 200 liters of water daily",
+            "analogy": "Xylem: one-way elevator up; Phloem: delivery truck down",
+            "key_terms": [
+                {"term": "Xylem", "definition": "Tubes carrying water up from roots to leaves"},
+                {"term": "Phloem", "definition": "Tubes moving food (sugars) from leaves to other parts"},
+            ],
+            "equation": None,
+        },
+        {
+            "type": "activity",
+            "title": "Transport Relay Race",
+            "body": "Setup (2 min): Divide into 6 groups of 5 students each.",
+            "format": "relay_race",
+            "group_size": 5,
+            "duration_minutes": 12,
+            "materials": ["chalk", "exercise book", "pen"],
+            "rules": ["One student at board at a time", "Label with key term"],
+            "expected_outcome": "Students diagram and explain key transport paths",
+        },
+        {
+            "type": "homework",
+            "title": "Safari Transport Detective",
+            "body": "",
+            "format": "detective",
+            "narrative": "You are a detective on a Kenyan safari.",
+            "tasks": [
+                {
+                    "id": "task_1",
+                    "instruction": "Draw and label xylem/phloem in acacia.",
+                    "type": "observation",
+                    "clue": "Clue 1: Leaves evaporate water.",
+                    "exercise_book_format": "Full page sketch with labels.",
+                },
+            ],
+            "completion": "Combine clues into a 4-sentence report.",
+            "assessment_tip": "Scan for 4 tasks complete + report.",
+            "quiz": [
+                {
+                    "question": "What carries water up in plants?",
+                    "options": ["A) Phloem", "B) Xylem", "C) Blood", "D) Roots only"],
+                    "correct": 1,
+                    "explanation": "Xylem transports water from roots to leaves.",
+                },
+                {
+                    "question": "Transpiration is:",
+                    "options": ["A) Food movement", "B) Water evaporation from leaves", "C) Heart pumping", "D) Blood clotting"],
+                    "correct": 1,
+                    "explanation": "It pulls water up through xylem.",
+                },
+                {
+                    "question": "In double circulation, blood goes to lungs for:",
+                    "options": ["A) Food", "B) Oxygen", "C) Waste only", "D) Sugars"],
+                    "correct": 1,
+                    "explanation": "Lungs oxygenate blood before body.",
+                },
+                {
+                    "question": "Red blood cells carry:",
+                    "options": ["A) Germs", "B) Oxygen", "C) Food only", "D) Water"],
+                    "correct": 1,
+                    "explanation": "RBCs transport oxygen.",
+                },
+                {
+                    "question": "Plants transport food via:",
+                    "options": ["A) Blood", "B) Xylem up only", "C) Phloem down", "D) Heart"],
+                    "correct": 2,
+                    "explanation": "Phloem moves sugars.",
+                },
+            ],
+        },
+        {
+            "type": "teacher_notes",
+            "title": "Teacher Notes",
+            "body": "",
+            "expected_answers": ["Xylem: water up; Phloem: food down"],
+            "common_mistakes": ["Confusing xylem/phloem directions"],
+            "quick_assessment": "If a student can explain xylem vs phloem, they understood.",
+            "next_lesson_link": "Links to Excretion.",
+            "exam_tip": "KNEC KCSE: Diagrams + comparisons.",
+            "safety_notes": None,
+        },
+    ],
+}
+
+BROKEN_LESSON_MISSING_TITLE = json.dumps(BROKEN_LESSON_MISSING_TITLE_DICT)
+
 # --- Legacy format with OLD block names (from test_main.py) ---
 
 SAMPLE_LESSON_OLD_NAMES = """[BLOCK_START_HOOK]
