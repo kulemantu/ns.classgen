@@ -104,7 +104,7 @@ git push origin master
 
 # 2. SSH to production
 ssh root@165.22.80.123
-cd /var/opt/ns.classgen
+cd /var/www/class.dater.world
 git pull
 
 # 3. Rebuild (nginx-proxy compose, prod env)
