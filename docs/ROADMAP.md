@@ -1202,6 +1202,13 @@ Every user story traces to: schema changes → new/modified modules → endpoint
 | US-4.5.2 | `lesson_history.adventure_state` (add col) | `services/llm.py`, `content/prompts.py`, `api/teacher.py` | `POST /api/teacher/class/{slug}/serialize` |
 | US-4.5.3 | None | `services/llm.py`, `api/chat.py`, `api/webhook.py`, `content/prompts.py` | `POST /api/chat` (+mood field) |
 | US-4.5.4 | None (updates existing `lesson_json`) | `services/llm.py`, `api/chat.py` | `POST /api/chat/regenerate-block` |
+| US-4.5.5 | None (response schema additions) | `content/prompts.py`, `channels/whatsapp.py` (markdown→WA transform), `assets/app.js` (markdown renderer) | `POST /api/chat` (`body_format`, `inline_options` fields) |
+| US-4.6.1 | `teachers` (cols: `google_sub`, `email`, `email_verified`, `picture_url`) | `core/auth.py` (new — token verify), `services/auth.py` (new), `api/auth.py` (new), `data/teachers.py` (extend) | `POST /api/auth/google` |
+| US-4.6.2 | `magic_links` (new); `teachers.invited_by` (col) | `services/email.py` (new), `content/email/welcome.html` + `welcome.txt` (new), `content/email/examples.py` (new), `api/auth.py` (extended) | `GET /auth/magic/{token}`, `GET /invite/{teacher_slug}` |
+| US-4.6.3 | `teachers.preferences jsonb` (col) | `api/teacher.py` (extend), `data/teachers.py` (extend) | `GET /api/teacher/me`, `PATCH /api/teacher/me/preferences` |
+| US-4.7.1 | `curriculum` (new); `curriculum_top_suggestions` (function or view) | `data/curriculum.py` (new — DB wrapper), `content/curriculum.py` (becomes shim) | (internal only) |
+| US-4.7.2 | None (reads `curriculum`, `lessons`) | `api/curriculum.py` (new), `assets/app.js` (suggestion-bar component), `assets/app.css` (pill styling) | `GET /api/curriculum/suggest` |
+| US-4.7.3 | None (reads `curriculum`) | `services/llm.py` (hint-block builder + control-char strip), `api/chat.py` (extend `_generate_lesson`), `api/webhook.py` (same path) | `POST /api/chat`, `GET /api/chat/stream`, `POST /webhook/twilio` (prompt-augmentation only; no new endpoints) |
 | US-5.1 | `teachers.locale` (add col) | `i18n/messages/{locale}.json` (new), `i18n.py` (t() helper), all UI surfaces (`channels/`, `commands/`, `index.html`, `terms.html`) | `GET /api/i18n/{locale}`, `PATCH /api/teacher/locale` |
 | US-5.2 | `supported_countries` (insert rows; new "North Africa" region) | `i18n.py` (`COUNTRY_REGIONS`, `COUNTRY_FLAGS`, `PHONE_COUNTRIES`), seed migration | `GET /api/teacher/countries` (no shape change) |
 
@@ -1225,6 +1232,10 @@ Every user story traces to: schema changes → new/modified modules → endpoint
 | 014 | [ ] | `014_add_homework_ratings.sql` | V4.3 | Create `homework_ratings` (anonymous 1-5 star + reaction per submission) — feeds reputation + community cards. |
 | 015 | [ ] | `015_add_teacher_locale.sql` | V5 | Add `locale text NOT NULL DEFAULT 'en'` to `teachers` for UI translation. |
 | 016 | [ ] | `016_seed_v5_countries.sql` | V5 | Extend `supported_countries` with French/Portuguese/Arabic markets + new "North Africa" region. |
+| 017 | [ ] | `017_teacher_identity.sql` | V4.6 | Add `google_sub text unique`, `email citext unique`, `email_verified bool`, `picture_url text` to `teachers`. Existing phone-keyed rows preserved. |
+| 018 | [ ] | `018_magic_links_and_invites.sql` | V4.6 | Create `magic_links` (`token`, `teacher_id`, `expires_at`, `used_at`, `single_use`); add `teachers.invited_by uuid` FK; add `teachers.preferences jsonb DEFAULT '{}'` for cross-device session prefs (US-4.6.3). |
+| 019 | [ ] | `019_curriculum_table.sql` | V4.7 | `CREATE EXTENSION pg_trgm`; create `curriculum` table with `(country_code, exam_board, class_level, subject, topic)` unique key, `aliases`/`keywords` text[], generated `search_vector` tsvector, trigram + FTS indexes. Includes DO block (or sibling `019_seed_curriculum.sql`) seeding from `src/classgen/content/curriculum.py` and exploding `exam_board → country_code` per published coverage. |
+| 020 | [ ] | `020_curriculum_top_suggestions.sql` | V4.7 | Create `curriculum_top_suggestions(country, q, class, subject) RETURNS SETOF …` SQL function ranking by trigram similarity + popularity (90-day lessons join) + country match + class-level match. Output includes `canonical_prompt`. Built dev-time via LLM-assisted SQL drafting with `pglast` AST validation (see US-4.7.1 view-authoring safety). |
 
 ---
 
