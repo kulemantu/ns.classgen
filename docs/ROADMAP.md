@@ -650,14 +650,22 @@ Re-scoped to two phases:
 - Architecture:
   - Model: `src/classgen/core/student.py` → `StudentIdentity(name, class_name, teacher_phone)` with collision detection
   - Table: New `students` table: `id, name, class_name, teacher_phone, parent_phone_last4 nullable, created_at`
-  - Migration: `003_add_students.sql` — create table, update `quiz_submissions` to reference `student_id`
+  - Migration: `007_add_students.sql` — create table, update `quiz_submissions` to reference `student_id`
   - Endpoint: `GET /api/teacher/{phone}/students` — list students with cross-homework scores
+  - Tests:
+    - `test_student_identity_collision_detection` — two submissions with same (name, class_name, teacher_phone) link to one `students` row, not two.
+    - `test_student_cross_homework_aggregation` — `GET /api/teacher/{phone}/students` returns aggregated quiz scores across multiple homework codes for the same student.
+    - `test_student_identity_scoped_to_teacher` — same (name, class) under a different teacher creates a distinct `students` row (teacher_phone is part of identity).
 
-- [ ] **US-4.3.2: Student progress view**
+- [ ] **US-4.3.2: Student progress view** *(depends on US-4.3.1)*
 - As a student (or parent), when I visit my progress page, I see my scores across subjects, my adventure completion history, and which topics I struggled with.
 - Architecture:
   - Endpoint: `GET /api/student/{id}/progress` — aggregated scores by subject
   - Frontend: New `progress.html` page
+  - Tests:
+    - `test_progress_aggregates_by_subject` — multiple homework codes across subjects roll up into per-subject averages.
+    - `test_progress_404_on_unknown_student_id` — no row-existence leak via response shape.
+    - `test_progress_isolated_per_teacher_scope` — a student under teacher A is invisible via teacher B's API surface.
 
 - [ ] **US-4.3.3: Teacher publishes lesson to community**
 - As a teacher, I can mark a lesson as "shared" so other teachers can discover and use it. My name, school, and subject are shown. I retain ownership.
@@ -665,31 +673,48 @@ Re-scoped to two phases:
   - Table: `community_lessons` → `id, homework_code, teacher_phone, subject, class_level, shared_at, rating_avg, use_count`
   - Endpoint: `POST /api/lesson/{code}/share`
   - Data: `src/classgen/data/community.py` — new module
+  - Tests:
+    - `test_share_creates_community_row` — POST creates one `community_lessons` row referencing the original `homework_code`.
+    - `test_share_idempotent` — sharing the same code twice returns the existing row, not a duplicate (200 not 201 on the second call).
+    - `test_share_requires_ownership` — teacher A's POST to share teacher B's homework code returns 403.
 
-- [ ] **US-4.3.4: Peer rating and discovery**
+- [ ] **US-4.3.4: Peer rating and discovery** *(depends on US-4.3.3)*
 - As a teacher, I can browse community lessons by subject and class, see ratings and use counts, and use a shared lesson with my class (creating my own homework code from the shared content).
 - Architecture:
   - Endpoint: `GET /api/community/lessons?subject=Biology&class=SS2` — paginated, sorted by rating
   - Endpoint: `POST /api/community/lessons/{id}/rate` — 1-5 star rating
   - Endpoint: `POST /api/community/lessons/{id}/use` — fork lesson, create new homework code
+  - Tests:
+    - `test_discovery_filters_by_subject_and_class_level` — querystring filters compose correctly.
+    - `test_use_forks_new_homework_code_owned_by_using_teacher` — POST `/use` creates a fresh `homework_codes` row owned by the requesting teacher.
+    - `test_rate_clamped_1_to_5` — rating outside `[1, 5]` returns 422.
+    - `test_rate_one_per_teacher_per_lesson` — a teacher's second rating on the same lesson updates rather than inserts.
 
-- [ ] **US-4.3.5: Subject/class cohort directory**
+- [ ] **US-4.3.5: Subject/class cohort directory** *(depends on US-4.3.3)*
 - As a teacher in Nigeria teaching SS2 Biology, when I open the community page I see a feed of other teachers teaching the same subject/class in the same country/region this week, with links to the lessons they generated. Turns the platform from a content library into a peer cohort — "I am not alone teaching this topic this week."
 - Architecture:
   - Endpoint: `GET /api/community/cohort?subject=Biology&class=SS2&country=Nigeria&week=current`
   - Data: reads existing `lesson_history` joined with `teachers` — no schema change
   - Frontend: cohort panel on community discovery page
   - Privacy: only teachers who have opted into community publishing are listed (reuses US-4.3.3 share flag); lesson codes link to the community listing, never expose raw homework links
+  - Tests:
+    - `test_cohort_only_lists_opted_in_teachers` — non-shared lessons + non-sharing teachers excluded from the response.
+    - `test_cohort_filters_by_country_and_week` — narrow query returns subset of broad query, never the other way around.
+    - `test_cohort_links_point_to_community_listing_not_homework_url` — response never contains a raw `/h/{code}` URL for an unforked lesson.
 
-- [ ] **US-4.3.6: Teacher reflection cards (qualitative signal)**
+- [ ] **US-4.3.6: Teacher reflection cards (qualitative signal)** *(depends on US-4.3.4)*
 - As a teacher, after I use a shared community lesson with my class I'm prompted (one day later) to leave a short reflection — *what worked*, *what I changed*, *my class's reaction*. Reflections appear on the community lesson card beneath the star rating, giving future users the *why*, not just the *how many stars*. This is the qualitative signal that turns ratings into a conversation.
 - Architecture:
   - Table: `lesson_reflections` → `id, community_lesson_id, teacher_phone, what_worked text, what_changed text, class_reaction text, created_at`
-  - Migration: `009_add_lesson_reflections.sql`
+  - Migration: `010_add_lesson_reflections.sql`
   - Endpoints: `POST /api/community/lessons/{id}/reflect`, `GET /api/community/lessons/{id}/reflections` (paginated, recent first)
   - UI: prompt delivered via web push + WhatsApp 24h after lesson generation when the teacher forked a community lesson (reuses V4.1 push infra); reflections shown inline on the community lesson card
+  - Tests:
+    - `test_reflection_prompt_scheduled_24h_after_fork` — forking a community lesson enqueues a push + WhatsApp prompt with `notify_at = now + 24h`.
+    - `test_reflection_paginated_recent_first` — `GET .../reflections` returns rows ordered by `created_at DESC`, page sizes configurable.
+    - `test_reflection_one_per_teacher_per_community_lesson` — second POST for the same `(teacher, community_lesson_id)` updates the existing row, not a duplicate.
 
-- [ ] **US-4.3.7: Student engagement on community lesson cards (quantitative signal)**
+- [ ] **US-4.3.7: Student engagement on community lesson cards (quantitative signal)** *(depends on US-4.3.4, US-4.3.8)*
 - As a teacher browsing community lessons, each card shows the aggregate student signal — submission count, completion rate, average quiz score, **and the average student rating from US-4.3.8** — across every class that has ever used this lesson. The quantitative signal sits next to the qualitative reflections, so I can judge a lesson on both teacher craft and observed student effect.
 - Two distinct rating streams feed this card (do not conflate):
   - **Teacher → lesson** star rating (US-4.3.4): peer craft judgment. "Would I teach this?"
@@ -698,15 +723,24 @@ Re-scoped to two phases:
   - Endpoint: `GET /api/community/lessons` response gains `engagement: {submissions, completion_rate, avg_score, avg_student_rating, reaction_histogram}` computed across all `homework_codes` forked from the same `community_lesson_id`
   - Data: joins `community_lessons` ← `homework_codes` ← `quiz_submissions` + `homework_ratings` — no schema change (reads the new table US-4.3.8 introduces)
   - Ranking: discovery sort gains `?sort=engagement` and `?sort=student_rating`; default remains `rating` until data volume justifies a composite
+  - Tests:
+    - `test_engagement_aggregates_across_forks` — submissions from all `homework_codes` forked from a single `community_lesson_id` sum into one engagement payload.
+    - `test_engagement_avg_score_excludes_unscored_submissions` — submissions with `score = NULL` are dropped from the average, not counted as 0.
+    - `test_sort_engagement_orders_by_completion_rate_desc` — `?sort=engagement` is deterministic with a tie-break on `submissions DESC`.
 
 - [ ] **US-4.3.8: Student rates homework after submission**
 - As a student, after submitting a homework quiz I can leave a quick 1–5 star rating and optionally tap a reaction chip (`fun` / `hard` / `confusing` / `boring` / `loved it`). Anonymous — no name required, distinct from the quiz submission identity. This is the **student's voice** returning to the teacher and, via US-4.3.7, to the community.
 - Architecture:
   - Table: `homework_ratings` → `id, homework_code, rating int (1-5), reaction text nullable, created_at` (no student identity — pure signal, avoids coercion)
-  - Migration: `013_add_homework_ratings.sql`
+  - Migration: `014_add_homework_ratings.sql`
   - Endpoint: `POST /h/{code}/rate` body `{ rating, reaction? }`
   - Frontend: star widget + reaction chips appear on the submit-confirmation card in `homework.html`; optional skip
   - Aggregation: `avg_student_rating` per `homework_code` → bubbled up per `community_lesson_id` (see US-4.3.7) and per teacher (see US-4.4.10)
+  - Tests:
+    - `test_rate_clamped_1_to_5` — values outside `[1, 5]` return 422; integer-only.
+    - `test_rate_anonymous_no_student_identity_stored` — the inserted row has no `student_id` or other PII; columns match the schema exactly.
+    - `test_reaction_chip_allowlist` — unknown reaction string returns 422 against the fixed allowlist (`fun | hard | confusing | boring | loved_it`).
+    - `test_rate_skip_returns_204_no_row_created` — submitting `{}` records the skip but writes no row.
 
 ---
 
@@ -721,40 +755,64 @@ Re-scoped to two phases:
 - Architecture:
   - Model: `src/classgen/core/teacher.py` → `TrustLevel` enum (teacher, verified, subject_lead, school_admin, reviewer)
   - Table: `teacher_verification` → `teacher_phone, certification_number, school_slug, years_experience, verified_at, verified_by`
-  - Migration: `004_add_verification.sql`
+  - Migration: `009_add_verification.sql`
   - Endpoint: `POST /api/teacher/verify`, `POST /api/school/{slug}/confirm-teacher`
+  - Tests:
+    - `test_verify_creates_unconfirmed_row_until_school_confirms` — POST `/verify` sets `verified_at=NULL` until matching school admin calls `/confirm-teacher`.
+    - `test_verified_badge_renders_on_profile_page` — once `verified_at` is non-null, `/t/{slug}` HTML contains the badge marker.
+    - `test_verified_lessons_ranked_higher_in_community_discovery` — given two equal-rating lessons, the one from a `TrustLevel >= verified` teacher sorts first.
 
-- [ ] **US-4.4.2: Content flagging and peer review**
+- [ ] **US-4.4.2: Content flagging and peer review** *(depends on US-4.4.1)*
 - As a verified teacher, I can flag a community lesson for inaccuracy, safety concern, or inappropriate content. Flags are reviewed by subject leads (peer teachers with high trust scores), not a central team.
 - Architecture:
   - Table: `content_flags` → `id, lesson_id, flagged_by, reason, status (open/confirmed/dismissed), reviewed_by`
   - Endpoint: `POST /api/community/lessons/{id}/flag`, `POST /api/community/flags/{id}/review`
+  - Tests:
+    - `test_flag_creates_open_status` — new flags land with `status='open'`.
+    - `test_flag_review_requires_subject_lead_trust_level` — non-`subject_lead` teacher's POST to `/review` returns 403.
+    - `test_flag_confirm_unpublishes_community_lesson` — confirmed flag flips the `community_lessons` row out of discovery results.
 
-- [ ] **US-4.4.3: Community-verified content**
+- [ ] **US-4.4.3: Community-verified content** *(depends on US-4.4.1)*
 - As a teacher browsing community lessons, I can see which lessons are "community verified" — endorsed by multiple certified teachers across different schools.
 - Architecture:
   - Table: `lesson_endorsements` → `lesson_id, teacher_phone, endorsed_at`
   - Logic: Lesson becomes "verified" when endorsed by N verified teachers from M different schools
   - Endpoint: `POST /api/community/lessons/{id}/endorse`
+  - Tests:
+    - `test_endorsement_threshold_n_teachers_m_schools` — verification flag flips only once both N and M are crossed (parameterized over a few `(N, M)` combos).
+    - `test_endorsement_one_per_teacher_per_lesson` — a teacher's second endorsement is a no-op (200, idempotent), not a duplicate row.
+    - `test_community_verified_badge_renders_on_listing` — once verified, the community lesson card carries the verified marker in both API payload and HTML.
 
-- [ ] **US-4.4.4: Lesson remix**
+- [ ] **US-4.4.4: Lesson remix** *(depends on US-4.4.3)*
 - As a teacher, I can fork a community-verified lesson, adapt blocks for my context (different opener, localized activity), and publish the remix. The original is credited.
 - Architecture:
   - Table: `community_lessons.forked_from` — nullable reference to parent lesson
   - Endpoint: `POST /api/community/lessons/{id}/remix` → creates new lesson with modified blocks
   - Model: `LessonPack` supports block-level replacement
+  - Tests:
+    - `test_remix_credits_original_via_forked_from` — created row has `forked_from = parent.id`.
+    - `test_remix_creates_new_community_lesson_row` — does not mutate parent; counts increment by exactly one.
+    - `test_remix_preserves_unedited_blocks_byte_for_byte` — blocks not named in the remix payload are copied unchanged from the parent.
 
 - [ ] **US-4.4.5: Teacher analytics dashboard**
 - As a teacher, I see a dashboard with: lessons generated this week/month, student engagement (quiz scores, adventure completion), my hardest topics (where students score lowest), and peer comparison (how my engagement compares to subject average).
 - Architecture:
   - Endpoint: `GET /api/teacher/{phone}/analytics` — aggregated metrics
   - Data: Computed from `homework_codes`, `quiz_submissions`, `lesson_history`, `community_lessons`
+  - Tests:
+    - `test_analytics_returns_weekly_and_monthly_counts` — week/month windows respect timezone (default UTC).
+    - `test_analytics_peer_comparison_uses_subject_average` — comparison baseline is the per-subject average across all teachers in the same country.
+    - `test_analytics_scoped_to_requesting_teacher` — teacher A's GET cannot return teacher B's numbers (403 on mismatch).
 
 - [ ] **US-4.4.6: School admin analytics**
 - As a school admin, I see: which teachers are active, subject coverage gaps (topics not taught with N weeks left in term), student performance trends, and homework completion rates.
 - Architecture:
   - Endpoint: `GET /api/school/{slug}/analytics` — anonymized student data, teacher activity
   - Data: Aggregated from teacher-scoped data within the school
+  - Tests:
+    - `test_school_analytics_strips_student_pii` — response payload contains no `student.name` or full phone numbers; aggregates only.
+    - `test_school_analytics_includes_subject_coverage_gaps` — given a configured term length, missing topics surface in the response.
+    - `test_school_analytics_requires_admin_role` — non-admin teacher's GET returns 403.
 
 - [ ] **US-4.4.7: Anonymized regional analytics**
 - As a ministry/curriculum body, I see anonymized aggregate data: topic difficulty nationwide (which topics have lowest scores), format effectiveness (adventure vs quiz-only completion rates), regional patterns, and novel teaching approaches emerging from the community.
@@ -762,25 +820,37 @@ Re-scoped to two phases:
   - Endpoint: `GET /api/analytics/regional?country=NG&region=Lagos` — no student PII, no teacher names
   - Data: Aggregated from `lesson_history`, `quiz_submissions`, `community_lessons`, grouped by region/subject/class
   - Model: Teacher is the anchor entity — `Teacher 454F32 teaches 2 subjects, 55 students, avg 72%`
+  - Tests:
+    - `test_regional_analytics_strips_teacher_names_and_phones` — response payload uses opaque teacher tokens, never names or full phone numbers.
+    - `test_regional_analytics_k_anonymity_threshold` — cohorts smaller than the configured `K` teachers are dropped entirely (not under-anonymized).
+    - `test_regional_analytics_groupable_by_region` — `?group_by=region` returns one row per region with stable counts.
 
-- [ ] **US-4.4.8: Block-level comments on shared lessons (co-discussion)**
+- [ ] **US-4.4.8: Block-level comments on shared lessons (co-discussion)** *(depends on US-4.3.3)*
 - As a teacher viewing a community-verified lesson, I can leave a comment on any individual block ("I replaced the analogy with a farming one, my students got it faster"). Comments thread inline on each block card. This is **co-discussion, not co-editing** — cheapest way to capture colleague-to-colleague know-how without the coordination cost of shared drafts.
 - Architecture:
   - Table: `lesson_block_comments` → `id, community_lesson_id, block_type (opener|explain|activity|homework|teacher_notes), teacher_phone, comment_text, parent_comment_id nullable, created_at`
-  - Migration: `010_add_lesson_block_comments.sql`
+  - Migration: `011_add_lesson_block_comments.sql`
   - Endpoints: `POST /api/community/lessons/{id}/comments` (body includes `block_type`), `GET /api/community/lessons/{id}/comments?block=opener`
   - UI: comment count badge on each block card on community lesson page; click expands thread with reply form
+  - Tests:
+    - `test_block_comment_requires_block_type_in_payload` — POST without `block_type` returns 422.
+    - `test_block_comment_thread_via_parent_comment_id` — replies reference parents; depth is unbounded but the API returns a flat list with `parent_comment_id` for frontend to nest.
+    - `test_block_comment_count_groups_by_block_type` — GET `/comments?block=opener` returns only opener-scoped comments.
 
-- [ ] **US-4.4.9: Subject-lead weekly picks (editorial + in-community promotion)**
+- [ ] **US-4.4.9: Subject-lead weekly picks (editorial + in-community promotion)** *(depends on US-4.4.1)*
 - As a Subject Lead (verified teacher with high trust in a subject, per US-4.4.1 `TrustLevel`), I curate a weekly shortlist of 3–5 standout lessons per subject/class I lead. My picks appear in a banner atop the community discovery feed for that subject, with my note on why each was picked. This adds editorial narrative and a promotion channel teachers can trust — no paid boost, no algorithm-only ranking.
 - Architecture:
   - Table: `weekly_picks` → `id, curator_phone, subject, class_level, week_start_date, community_lesson_id, curator_note text, created_at`
-  - Migration: `011_add_weekly_picks.sql`
+  - Migration: `012_add_weekly_picks.sql`
   - Endpoints: `POST /api/community/picks` (curator-only), `GET /api/community/picks?subject=Biology&class=SS2&week=current`
   - Permissions: enforced at endpoint via `TrustLevel >= subject_lead` check
   - UI: "This week's picks from {curator}" banner atop community discovery; curator's name links to their public profile
+  - Tests:
+    - `test_picks_post_requires_subject_lead_trust_level` — `TrustLevel < subject_lead` returns 403.
+    - `test_picks_get_defaults_to_current_week` — omitting `?week=` returns the Monday-anchored current ISO week.
+    - `test_picks_curator_note_renders_alongside_lesson_card` — response payload includes the note attached to each pick.
 
-- [ ] **US-4.4.10: Teacher reputation score (earned, not credentialed)**
+- [ ] **US-4.4.10: Teacher reputation score (earned, not credentialed)** *(depends on US-4.3.8, US-4.4.3, US-4.4.4)*
 - As a teacher, my public profile shows a **reputation score** I earn from: (a) my students actually completing the homework I assign (`quiz_submissions`), (b) the star ratings those students give after completing (US-4.3.8 `homework_ratings`), (c) other teachers remixing my shared lessons (US-4.4.4), and (d) peer endorsements (US-4.4.3). Reputation is **earned**, complementary to `TrustLevel` (US-4.4.1) which is credentialed. Reputation feeds community discovery ranking and subject-lead eligibility.
 - The score is **transparent**: the profile shows the breakdown — "Students completed: 1,247 · Avg student rating: 4.3 · Remixes of my lessons: 18 · Peer endorsements: 9" — not an opaque number. Teachers trust what they can audit.
 - Architecture:
@@ -792,6 +862,11 @@ Re-scoped to two phases:
   - UI: reputation card on public profile `/t/{slug}`, next to `TrustLevel` badge
   - Ranking: US-4.3.7's `?sort=engagement` becomes reputation-aware once this ships; subject-lead eligibility (US-4.4.1) gains an explicit reputation threshold rather than the current implicit "high trust score"
   - Safeguards: rate-limited signals per student per homework (one rating only); spike detection flags suspicious reputation growth for subject-lead review
+  - Tests:
+    - `test_reputation_composite_formula_v1` — given fixed inputs `(completions=10, ratings=[5,5,4,3], remixes=2, endorsements=1)`, `composite == 10 + 17 + 2·2 + 3·1 == 34` (locks the v1 formula until intentionally bumped).
+    - `test_reputation_breakdown_visible_on_profile` — the four signals render on `/t/{slug}` HTML, not just the composite number.
+    - `test_reputation_rate_limit_one_rating_per_student_per_homework` — a second `homework_ratings` row for the same `(homework_code, student fingerprint)` is rejected.
+    - `test_reputation_upstream_attribution_on_fork` — completion on a fork adds `0.25 × completion_signal` to the original teacher's score and `1.0 ×` to the forking teacher's.
 
 ---
 
