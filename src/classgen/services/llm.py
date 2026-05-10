@@ -24,9 +24,13 @@ openrouter_client = AsyncOpenAI(
     api_key=_openrouter_key or "not-configured",
 )
 
+# Default model for all three call sites. Override with CLASSGEN_LLM_MODEL for
+# A/B benchmarks; production leaves this unset to use grok-4.1-fast.
+_DEFAULT_MODEL = os.environ.get("CLASSGEN_LLM_MODEL", "x-ai/grok-4.1-fast")
+
 
 async def call_openrouter(
-    system_prompt: str, user_message: str, model: str = "x-ai/grok-4.1-fast"
+    system_prompt: str, user_message: str, model: str = _DEFAULT_MODEL
 ) -> str | None:
     """Call the LLM via OpenRouter (blocking, returns full response)."""
     try:
@@ -44,7 +48,7 @@ async def call_openrouter(
 
 
 async def call_openrouter_json(
-    system_prompt: str, user_message: str, model: str = "x-ai/grok-4.1-fast"
+    system_prompt: str, user_message: str, model: str = _DEFAULT_MODEL
 ) -> str | None:
     """Call the LLM requesting JSON output.
 
@@ -75,7 +79,7 @@ async def call_openrouter_json(
 
 
 async def stream_openrouter(
-    system_prompt: str, user_message: str, model: str = "x-ai/grok-4.1-fast"
+    system_prompt: str, user_message: str, model: str = _DEFAULT_MODEL
 ) -> AsyncGenerator[str, None]:
     """Yield tokens from a streaming LLM response."""
     kwargs: dict = {}
