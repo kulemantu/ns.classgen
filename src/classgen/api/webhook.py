@@ -20,7 +20,7 @@ from classgen.data import get_active_thread, get_teacher_by_phone, save_teacher
 from classgen.data.subscriptions import log_usage
 from classgen.data.teachers import is_onboarded, mark_onboarded
 from classgen.services.billing_service import check_usage
-from classgen.services.llm import call_openrouter
+from classgen.services.llm import LLMUnavailableError, call_openrouter
 
 router = APIRouter()
 
@@ -152,9 +152,15 @@ async def twilio_webhook(request: Request):
         return Response(content=str(twiml_response), media_type="application/xml")
 
     thread_id = get_active_thread(phone)
-    ai_response_text, pdf_url, homework_code, lesson_pack = await _generate_lesson(
-        body, thread_id, teacher_phone=phone
-    )
+    try:
+        ai_response_text, pdf_url, homework_code, lesson_pack = await _generate_lesson(
+            body, thread_id, teacher_phone=phone
+        )
+    except LLMUnavailableError:
+        twiml_response.message(
+            "Couldn't reach the AI just now. Please send your message again in a moment."
+        )
+        return Response(content=str(twiml_response), media_type="application/xml")
     has_content = _has_lesson_blocks(ai_response_text) or (
         lesson_pack is not None and len(lesson_pack.blocks) > 0
     )

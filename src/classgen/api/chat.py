@@ -6,7 +6,7 @@ import asyncio
 import json
 import re
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from classgen.api.schemas import ChatRequest
@@ -34,11 +34,18 @@ from classgen.data.lessons import get_cached_lesson_json
 from classgen.data.subscriptions import log_usage
 from classgen.services.billing_service import check_usage
 from classgen.services.llm import (
+    LLMUnavailableError,
     call_openrouter,
     call_openrouter_json,
     generate_homework_code,
     stream_openrouter,
 )
+
+LLM_UNAVAILABLE_DETAIL = {
+    "error": "llm_unavailable",
+    "message": "Couldn't reach the AI just now. Tap retry, or try again in a moment.",
+    "retryable": True,
+}
 
 router = APIRouter()
 
@@ -197,12 +204,7 @@ async def _generate_lesson(
         assistant_reply = await call_openrouter(CLASSGEN_SYSTEM_PROMPT, prompt)
 
     if not assistant_reply:
-        return (
-            "I'm sorry, my AI engine is currently resting. Please try again soon.",
-            None,
-            None,
-            None,
-        )
+        raise LLMUnavailableError("llm returned no content after retry")
 
     log_session(thread_id, "assistant", assistant_reply)
 
@@ -368,9 +370,12 @@ async def local_chat_endpoint(req: ChatRequest, request: Request):
         if not usage.allowed:
             return {"reply": usage.message, "pdf_url": None, "homework_code": None}
 
-    assistant_reply, pdf_url, homework_code, lesson_pack = await _generate_lesson(
-        req.message, req.thread_id, teacher_phone=teacher_phone
-    )
+    try:
+        assistant_reply, pdf_url, homework_code, lesson_pack = await _generate_lesson(
+            req.message, req.thread_id, teacher_phone=teacher_phone
+        )
+    except LLMUnavailableError:
+        raise HTTPException(status_code=502, detail=LLM_UNAVAILABLE_DETAIL) from None
 
     # Track usage for registered teachers
     has_content = _has_content(assistant_reply, lesson_pack)
@@ -583,6 +588,13 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
             new_blocks = accumulator.feed(token)
             for block in new_blocks:
                 yield _sse_event("block", block)
+
+        # If the stream produced nothing, the upstream LLM is unavailable.
+        # Surface a structured error so the frontend can render the retry
+        # bubble instead of an empty fallback.
+        if not full_text.strip():
+            yield _sse_event("error", LLM_UNAVAILABLE_DETAIL)
+            return
 
         # Log the full response
         log_session(req.thread_id, "assistant", full_text)

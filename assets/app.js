@@ -358,6 +358,13 @@
             chatFeed.appendChild(typingGroup);
             scrollToBottom();
 
+            await runChatRequest(text, typingGroup);
+
+            setThinking(false);
+            inputField.focus();
+        }
+
+        async function runChatRequest(text, typingGroup) {
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
@@ -365,7 +372,27 @@
                     body: JSON.stringify({ message: text, thread_id: threadId })
                 });
                 if (!response.ok) {
-                    throw new Error(response.status === 422 ? 'Message too long or invalid.' : 'Server error. Please try again.');
+                    let msg = 'Server error. Please try again.';
+                    let retryable = response.status >= 500;
+                    if (response.status === 422) {
+                        msg = 'Message too long or invalid.';
+                        retryable = false;
+                    } else {
+                        try {
+                            const body = await response.json();
+                            if (body && body.detail) {
+                                if (typeof body.detail === 'string') {
+                                    msg = body.detail;
+                                } else {
+                                    if (body.detail.message) msg = body.detail.message;
+                                    if (typeof body.detail.retryable === 'boolean') retryable = body.detail.retryable;
+                                }
+                            }
+                        } catch (_) { /* non-JSON body */ }
+                    }
+                    const err = new Error(msg);
+                    err.retryable = retryable;
+                    throw err;
                 }
                 const data = await response.json();
                 if (chatFeed.contains(typingGroup)) chatFeed.removeChild(typingGroup);
@@ -376,14 +403,37 @@
 
             } catch (err) {
                 if (chatFeed.contains(typingGroup)) chatFeed.removeChild(typingGroup);
-                chatFeed.appendChild(createAiGroup(
-                    `<span style="color:#EF4444;font-weight:500">Connection Error</span><br><span style="font-size:0.82rem;opacity:0.65">${escapeHtml(err.message)}</span>`
-                ));
+                // Network-level fetch failures (offline, DNS, TLS) end up here
+                // without a retryable flag. Treat those as retryable too — the
+                // user's intent and message text are still valid.
+                const isNetworkErr = err.retryable === undefined && err.name === 'TypeError';
+                const retryable = err.retryable === true || isNetworkErr;
+                const heading = retryable ? "Couldn't reach the AI" : 'Connection Error';
+                const errBubble = createAiGroup(
+                    `<span style="color:#EF4444;font-weight:500">${escapeHtml(heading)}</span>` +
+                    `<br><span style="font-size:0.82rem;opacity:0.65">${escapeHtml(err.message || 'Connection error')}</span>`
+                );
+                if (retryable) {
+                    const btnRow = document.createElement('div');
+                    btnRow.className = 'msg-buttons';
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'wa-reply-btn';
+                    btn.textContent = 'Try again';
+                    btn.addEventListener('click', async () => {
+                        btn.disabled = true;
+                        errBubble.remove();
+                        const newTyping = createTypingGroup();
+                        chatFeed.appendChild(newTyping);
+                        scrollToBottom();
+                        await runChatRequest(text, newTyping);
+                    }, { once: true });
+                    btnRow.appendChild(btn);
+                    errBubble.appendChild(btnRow);
+                }
+                chatFeed.appendChild(errBubble);
                 scrollToBottom();
             }
-
-            setThinking(false);
-            inputField.focus();
         }
 
         // ── Push Notifications ────────────────────────────────

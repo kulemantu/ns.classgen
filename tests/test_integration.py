@@ -104,8 +104,9 @@ class TestWebChatLessonGeneration:
         assert data["homework_code"] is None
 
     @patch("classgen.api.chat.call_openrouter", new_callable=AsyncMock)
-    def test_llm_failure_graceful(self, mock_llm):
-        """When the LLM returns None (API error), the user gets a friendly message."""
+    def test_llm_failure_returns_retryable_502(self, mock_llm):
+        """When the LLM returns None (API error), client gets a 502 with a
+        structured retry envelope so the UI can render a tap-to-retry bubble."""
         mock_llm.return_value = None
 
         response = client.post(
@@ -116,9 +117,11 @@ class TestWebChatLessonGeneration:
             },
         )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert "resting" in data["reply"].lower()
+        assert response.status_code == 502
+        detail = response.json()["detail"]
+        assert detail["error"] == "llm_unavailable"
+        assert detail["retryable"] is True
+        assert "try again" in detail["message"].lower()
 
 
 # ---------------------------------------------------------------------------
