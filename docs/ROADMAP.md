@@ -608,6 +608,8 @@ scratch/           # Experiments — NOT importable, NOT in package.
 
 **Goal:** Homework evolves from 5 MCQ questions to narrative adventures with real-world tasks, exercise-book formats, and embedded quizzes.
 
+**Success metric:** of teachers who generate one adventure-format homework, ≥60% generate a second within 14 days (retention proxy — they came back for the format, not just the topic). Completion rate (quiz finished after starting) is no worse than the MCQ-only baseline.
+
 **Reality check (April 2026 review):** Most of V4.2 landed quietly under the V4.1 `FF_STRUCTURED_OUTPUT` flag. Server-side: `HomeworkBlock` already carries `narrative`, `tasks`, `format`, `completion`, and embedded `quiz` (`core/models.py:75–85`); `HomeworkTask` has `id/instruction/type/clue/exercise_book_format` (`31–37`); the JSON prompt instructs the LLM to emit them (`content/prompts.py:193–213`); `GET /api/h/{code}` already returns a `homework_structured` payload when `lesson_json` is present (`api/homework.py:62–80`); `TeacherNotesBlock.safety_notes` exists (`models.py:96`). **What's missing is the student-facing UI that consumes this data**, plus the teacher approval endpoint and resolving a format-list mismatch (see US-4.2.1 below).
 
 Re-scoped to two phases:
@@ -642,6 +644,8 @@ Re-scoped to two phases:
 ### V4.3 — Student Identity + Community
 
 **Goal:** Students gain progressive identity (teacher-scoped first). Teachers can publish lessons to the community. Peer rating begins.
+
+**Success metric:** within 30 days of feature launch, ≥10 distinct teachers publish at least one lesson to the community, ≥1 of those lessons is forked by another teacher, and at least one teacher-to-lesson rating and one student-to-homework rating land. (The flywheel only matters if all three node types — publisher, forker, rater — are activated; one of each within a month is the floor of "it's working.")
 
 **The community flywheel (why this phase exists).** Teachers publish lessons → peers discover and use them → students engage via two signals: **(a) completion** (did they finish the homework?) and **(b) rating** (1–5 stars + reaction after submitting, US-4.3.8) → those signals plus teacher reflections (US-4.3.6) and peer endorsements aggregate into a teacher **reputation score** (US-4.4.10) → discovery ranks by a blend of teacher judgment and earned reputation → the best content surfaces, the strongest teachers earn visibility and subject-lead eligibility. Co-moderation, co-discussion (US-4.4.8), and subject-lead curation (US-4.4.9) sit on top of this spine. The goal is not a content library but a **self-improving crowd-curated curriculum**, grounded in teachers' pedagogical judgment and validated by students' observed engagement.
 
@@ -749,6 +753,8 @@ Re-scoped to two phases:
 ### V4.4 — Teacher Trust Network + Analytics
 
 **Goal:** Teachers earn trust through verified credentials and engagement. Content is co-moderated. Analytics flow from teacher to ministry.
+
+**Success metric:** within 60 days of feature launch, ≥5 teachers reach `verified` `TrustLevel` (US-4.4.1), at least one lesson reaches community-verified status (US-4.4.3), and at least one peer flag is reviewed by a subject lead (US-4.4.2). Co-moderation is the critical proof — if flags accumulate without review, the trust network isn't self-governing yet.
 
 #### User Stories
 
@@ -876,6 +882,8 @@ Re-scoped to two phases:
 
 **Goal:** Make lessons **fun** — on both sides of the content. V4.2 ships the adventure *data*; V4.5 ships the UX that carries the metaphor through to students and the generation levers that make authoring feel playful to teachers. Not required for the community flywheel (V4.3/V4.4) to function; multiplies engagement once the flywheel is running.
 
+**Success metric:** after shipping, classes with `show_streak=true` (US-4.5.1) see a measurable lift in week-over-week homework completion rate vs. the same teacher's classes with streaks off. For the mood dial (US-4.5.3), ≥25% of generated lessons set at least one mood within 30 days. For block regeneration (US-4.5.4), the rewrite-rate per generated lesson stabilizes at >0 (teachers using it at all is the signal that the conversation framing works).
+
 **Un-defer when:** the V4.3 community flywheel is producing measurable peer activity (target: ≥10 lessons forked per week, or a single subject crossing 5 reflections per lesson). Until then there's no behavioral baseline for streaks, mood dial, or block-regen to attach to and the work risks shipping into a vacuum. Re-check this gate at the V4.4 retrospective.
 
 - [ ] **US-4.5.1: Homework streaks + progression character**
@@ -940,6 +948,8 @@ Re-scoped to two phases:
 
 **Goal:** Give web teachers a real identity that survives clearing browser data, jumping between phone and laptop, and (eventually) credits/billing. Most teacher phones running WhatsApp on Android already have a Google account signed in — a single tap on "Continue with Google" pops the native account picker, no email typing, no password memory. After sign-in we send a styled welcome email that doubles as a magic-link bookmark and an invite teachers can forward to colleagues, pre-baked with suggestion examples so first-time recipients arrive cognitively prepared to use the chat.
 
+**Success metric:** within 30 days of feature launch, ≥30% of new web sign-ups complete Google sign-in (the rest stay on the anonymous/Skip path — which is fine); magic-link click-through ≥15% of welcome emails sent; and ≥1 teacher returns via the magic link from a different device than the one they signed up on (the "switched to home laptop" loop closes).
+
 **Un-defer when:** *any* of the following becomes true — (a) cross-device session loss is reported as a concrete pain point by ≥3 teacher interviews (handles the "moved from school laptop to home" case), (b) the credits/billing roadmap leaves discussion phase (durable accounts are a prerequisite), or (c) the teacher-facing model picker (the iteration after the secret `/set-model` route) is scheduled — without a durable account, the picked model can't follow the teacher across devices.
 
 **Why this slot.** Anonymous browser-local identity (`localStorage.classgen_thread_id`) was fine for the V1–V3 single-device phase. It does not survive (a) the V4.4 trust-network reputation work, which needs a stable cross-device subject; (b) the V4.5.x personalization layers (model override, mood dial) that should follow a teacher across devices; (c) the eventual credits feature, which needs a billable account. V5's international expansion compounds these — a teacher in Senegal switching between her phone and a shared school laptop would lose locale on every browser switch. Doing identity *before* V5 means the locale picker writes to a real account instead of leaking with the browser cache.
@@ -994,6 +1004,8 @@ Re-scoped to two phases:
 ### V4.7 — Curriculum Database & Smart Suggestions (deferred)
 
 **Goal:** Move the in-model curriculum from `src/classgen/content/curriculum.py` (WAEC topics today, KNEC/Cambridge/etc. to follow) into Postgres so the web frontend can render topic-suggestion pills above the chat as the teacher types. Every pill click that resolves the next field of the prompt saves a clarification round-trip to the LLM — currently each clarification call costs 3-5 s and tokens (see the cross-model bench in `.local/bench-models-2026-05-11.md`). WhatsApp does not get the pill UX (no pill widget in WhatsApp), but its clarification path is enriched with the same DB-ranked candidates so the SUGGESTIONS line floats the topics most likely to be on *this* teacher's syllabus instead of generic-LLM picks.
+
+**Success metric:** within 30 days of feature launch, ≥30% of web chat submissions originate from a pill click (measured by the `data-source=pill` attribute on `/api/chat` requests, see US-4.7.2 telemetry), AND the WhatsApp clarification-to-lesson conversion rate rises by ≥5 percentage points vs. the pre-feature baseline (proving the DB-ranked hint block from US-4.7.3 is worth the extra ~300 tokens per WhatsApp clarification — not just a fancier prompt).
 
 **Un-defer when:** *any* of the following becomes true — (a) WhatsApp clarification volume crosses 100/day (token cost on the LLM clarification path becomes material; the DB-ranked hint block in US-4.7.3 measurably lifts conversion), (b) two or more teacher interviews surface concrete demand for an autocomplete affordance on web, or (c) curriculum maintenance becomes a code-deploy bottleneck (someone is editing `curriculum.py` more than once per fortnight and that work would be easier as DB rows).
 
@@ -1216,6 +1228,8 @@ The bar's chrome (`Suggested · SS2 Biology · NG/WAEC`) is intentionally inform
 ## V5 — Internationalization & Market Expansion
 
 **Goal:** Open ClassGen to non-English-speaking African markets. The current 14-country roster (Kenya, Rwanda, Tanzania, Uganda, Cameroon, Ghana, Nigeria, Botswana, South Africa, Zambia, Zimbabwe, India, UK, US) is English-speaking by intent — lessons, prompts, and UI all assume English. Demos are showing real interest in French, Portuguese, and Arabic markets, so this phase brings the platform to them.
+
+**Success metric:** within 30 days of US-5.1 shipping, the first lesson is generated by a teacher with `locale != 'en'`; within 60 days of US-5.2 shipping, ≥5 teachers register from a French- or Portuguese-language country (Senegal, Ivory Coast, Mali, Burkina Faso, DR Congo, Mozambique, Angola), and the i18n missing-key test (catalog completeness) stays green across every locale catalog. (The dropdown is only honest if the strings are.)
 
 **Sequencing.** US-5.1 (UI translation infrastructure) is a hard prerequisite for US-5.2 (new markets). Adding French countries to the dropdown without French interface strings would ship a half-translated experience that's worse than the current English-only scope.
 
