@@ -627,6 +627,8 @@ Re-scoped to two phases:
 
 #### V4.2b — Safety & approval (defer until V4.2a ships)
 
+**Un-defer when:** V4.2a (Adventure UI) is live in production *and* a teacher has flagged a homework adventure as requiring manual approval (i.e., the approval flow has a real consumer waiting for it). Until both conditions hold, the approval UI risks shipping into a flow no one uses.
+
 - [~] **US-4.2.3: Teacher feasibility review** (model shipped; endpoint + UI pending)
 - As a teacher, before assigning a homework adventure, I see safety notes surfaced from `TeacherNotesBlock.safety_notes` and can approve or request regeneration.
 - Architecture:
@@ -874,6 +876,8 @@ Re-scoped to two phases:
 
 **Goal:** Make lessons **fun** — on both sides of the content. V4.2 ships the adventure *data*; V4.5 ships the UX that carries the metaphor through to students and the generation levers that make authoring feel playful to teachers. Not required for the community flywheel (V4.3/V4.4) to function; multiplies engagement once the flywheel is running.
 
+**Un-defer when:** the V4.3 community flywheel is producing measurable peer activity (target: ≥10 lessons forked per week, or a single subject crossing 5 reflections per lesson). Until then there's no behavioral baseline for streaks, mood dial, or block-regen to attach to and the work risks shipping into a vacuum. Re-check this gate at the V4.4 retrospective.
+
 - [ ] **US-4.5.1: Homework streaks + progression character**
 - As a student with a persistent identity in my teacher's class (US-4.3.1), my homework page shows a streak counter ("5 homeworks in a row"), a simple character that evolves with each completion, and encouraging copy when I break or recover a streak. Teacher-toggleable per class.
 - Architecture:
@@ -936,6 +940,8 @@ Re-scoped to two phases:
 
 **Goal:** Give web teachers a real identity that survives clearing browser data, jumping between phone and laptop, and (eventually) credits/billing. Most teacher phones running WhatsApp on Android already have a Google account signed in — a single tap on "Continue with Google" pops the native account picker, no email typing, no password memory. After sign-in we send a styled welcome email that doubles as a magic-link bookmark and an invite teachers can forward to colleagues, pre-baked with suggestion examples so first-time recipients arrive cognitively prepared to use the chat.
 
+**Un-defer when:** *any* of the following becomes true — (a) cross-device session loss is reported as a concrete pain point by ≥3 teacher interviews (handles the "moved from school laptop to home" case), (b) the credits/billing roadmap leaves discussion phase (durable accounts are a prerequisite), or (c) the teacher-facing model picker (the iteration after the secret `/set-model` route) is scheduled — without a durable account, the picked model can't follow the teacher across devices.
+
 **Why this slot.** Anonymous browser-local identity (`localStorage.classgen_thread_id`) was fine for the V1–V3 single-device phase. It does not survive (a) the V4.4 trust-network reputation work, which needs a stable cross-device subject; (b) the V4.5.x personalization layers (model override, mood dial) that should follow a teacher across devices; (c) the eventual credits feature, which needs a billable account. V5's international expansion compounds these — a teacher in Senegal switching between her phone and a shared school laptop would lose locale on every browser switch. Doing identity *before* V5 means the locale picker writes to a real account instead of leaking with the browser cache.
 
 **Out of scope for V4.6.**
@@ -988,6 +994,8 @@ Re-scoped to two phases:
 ### V4.7 — Curriculum Database & Smart Suggestions (deferred)
 
 **Goal:** Move the in-model curriculum from `src/classgen/content/curriculum.py` (WAEC topics today, KNEC/Cambridge/etc. to follow) into Postgres so the web frontend can render topic-suggestion pills above the chat as the teacher types. Every pill click that resolves the next field of the prompt saves a clarification round-trip to the LLM — currently each clarification call costs 3-5 s and tokens (see the cross-model bench in `.local/bench-models-2026-05-11.md`). WhatsApp does not get the pill UX (no pill widget in WhatsApp), but its clarification path is enriched with the same DB-ranked candidates so the SUGGESTIONS line floats the topics most likely to be on *this* teacher's syllabus instead of generic-LLM picks.
+
+**Un-defer when:** *any* of the following becomes true — (a) WhatsApp clarification volume crosses 100/day (token cost on the LLM clarification path becomes material; the DB-ranked hint block in US-4.7.3 measurably lifts conversion), (b) two or more teacher interviews surface concrete demand for an autocomplete affordance on web, or (c) curriculum maintenance becomes a code-deploy bottleneck (someone is editing `curriculum.py` more than once per fortnight and that work would be easier as DB rows).
 
 **Why this slot.** Two pre-existing artifacts make this the right shape now: (1) `curriculum.py:251` already exposes `suggest_topics()` for in-model lookups — that function becomes a thin shim over the DB after migration, no caller changes; (2) the `lessons` history table already exists with `(teacher, subject, topic, class_level)` columns, so the popularity signal for ranking is free — just a join, no new tracking. The migration is small (~5–15 k rows once WAEC/NECO/KNEC/BECE/Cambridge are seeded), the value is direct (latency + tokens saved per clarification), and the schema choices made here unblock V5 (locale-translated topic names) and the V4.4 community-flywheel ranking (which can co-rank curriculum entries by which produced highly-rated community lessons).
 
