@@ -428,7 +428,9 @@
             background: var(--input-field-bg); border: none;
             color: var(--input-field-text);
             padding: 10px 16px; border-radius: 8px;
-            outline: none; font-size: 0.93rem; font-family: inherit;
+            outline: none;
+            /* 16px floor: iOS Safari auto-zooms inputs <16px, which then leaves the page zoomed-and-scrolled. */
+            font-size: 16px; font-family: inherit;
         }
         #mainInput::placeholder { color: var(--input-placeholder); }
         #mainInput:disabled     { opacity: 0.6; }
@@ -526,7 +528,9 @@
         .sidebar-input {
             flex: 1; padding: 8px 10px;
             background: var(--sidebar-input-bg); border: 1px solid var(--sidebar-input-bd);
-            border-radius: 6px; color: var(--sidebar-input-text); font-size: 0.85rem;
+            border-radius: 6px; color: var(--sidebar-input-text);
+            /* 16px floor: iOS Safari auto-zooms inputs <16px on focus. */
+            font-size: 16px;
             outline: none; font-family: inherit;
         }
         .sidebar-input:focus { border-color: var(--sidebar-input-focus); }

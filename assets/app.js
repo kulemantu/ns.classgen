@@ -814,7 +814,8 @@
             ));
             restoreConversation();
             initIntro();
-            inputField.focus();
+            // Skip auto-focus while intro overlay is visible (keyboard would obscure onboarding on mobile).
+            if (localStorage.getItem('classgen_intro_seen')) inputField.focus();
             initServiceWorker();
             fetchProfile();
             checkPushStatus();
