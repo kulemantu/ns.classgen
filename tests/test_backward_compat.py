@@ -58,8 +58,12 @@ class TestChatEndpointUnchanged:
             )
         assert response.status_code == 200
         data = response.json()
-        # Must have exactly these keys (no lesson_pack when flags off)
-        assert set(data.keys()) == {"reply", "pdf_url", "homework_code"}
+        # Legacy clients depend on these keys being present; ``homework_url``
+        # was added when teacher-scoped links landed and is permitted as a
+        # strictly-additive addition. ``lesson_pack`` only appears when
+        # ``FF_STRUCTURED_OUTPUT`` is on.
+        assert {"reply", "pdf_url", "homework_code"}.issubset(data.keys())
+        assert "lesson_pack" not in data
         assert "BLOCK_START" in data["reply"]
         assert data["pdf_url"] == "/static/test.pdf"
         assert data["homework_code"] == "TEST42"
