@@ -6,6 +6,15 @@
 #   2. Set VIRTUAL_HOST / LETSENCRYPT_HOST to your domain
 #   3. DNS A record pointing to the server
 #   4. External 'proxy' network (nginx-proxy)
+#
+# Project name is pinned to ns-classgen so docker compose doesn't auto-derive
+# "deploy" from the parent directory and collide with sibling projects (e.g.
+# ns.no-forms also deploys from a deploy/ subdir on the same host). Mirrors
+# the top-level docker-compose.yml; without this pin the previous compose-up
+# left orphaned classgen-* containers under project=deploy alongside the
+# noforms-* containers.
+
+name: ns-classgen
 
 services:
   app:
