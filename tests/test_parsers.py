@@ -1,9 +1,14 @@
 """Tests for classgen.core.parsers — dual JSON + block-marker parsing."""
 
+import re
+import typing
+
+from classgen.content.prompts import CLASSGEN_JSON_SYSTEM_PROMPT
 from classgen.core.models import (
     ActivityBlock,
     ExplainBlock,
     HomeworkBlock,
+    HomeworkFormat,
     LessonPack,
     OpenerBlock,
     TeacherNotesBlock,
@@ -572,4 +577,67 @@ class TestBlockSalvage:
         assert pack is not None
         assert len(pack.blocks) == 1
         assert pack.blocks[0].type == "opener"
+
+
+class TestHomeworkFormatEnumLockstep:
+    """V4.2a — `HomeworkBlock.format` is now a `Literal[...]`. The enum
+    must stay in lockstep with the values the JSON system prompt advertises
+    so the model never produces a string that fails validation."""
+
+    def _enum_values(self) -> set[str]:
+        # Pull the Literal members at runtime (skip the "" placeholder).
+        return {v for v in typing.get_args(HomeworkFormat) if v}
+
+    def _prompt_advertised_values(self) -> set[str]:
+        # The prompt enumerates the homework format on a line shaped like:
+        #   "format": "adventure | investigation | creative | ..."
+        # We grep for the homework-section literal (the only one with the
+        # `adventure` token) and split on `|`.
+        line = next(
+            line
+            for line in CLASSGEN_JSON_SYSTEM_PROMPT.splitlines()
+            if '"format"' in line and "adventure" in line
+        )
+        match = re.search(r'"format":\s*"([^"]+)"', line)
+        assert match, f"prompt line did not match expected shape: {line!r}"
+        return {tok.strip() for tok in match.group(1).split("|")}
+
+    def test_enum_matches_prompt_exactly(self):
+        """The HomeworkFormat Literal must equal the prompt's advertised set
+        (no superset, no subset). If you add a value to one, add it to the other."""
+        enum_vals = self._enum_values()
+        prompt_vals = self._prompt_advertised_values()
+        assert enum_vals == prompt_vals, (
+            f"HomeworkFormat <-> prompt drift detected.\n"
+            f"  In enum only:   {enum_vals - prompt_vals}\n"
+            f"  In prompt only: {prompt_vals - enum_vals}"
+        )
+
+    def test_valid_format_accepted(self):
+        """A homework block with a known format string passes Pydantic.
+
+        Runtime check — pyright can't prove the dynamic `fmt` is a Literal
+        member because it's pulled from `typing.get_args(...)`. The test
+        body knows that's safe; suppress the static-type warning.
+        """
+        for fmt in self._enum_values():
+            block = HomeworkBlock(title="t", body="b", format=fmt)  # type: ignore[arg-type]
+            assert block.format == fmt
+
+    def test_unknown_format_rejected(self):
+        """Pydantic v2 rejects format strings outside the Literal set."""
+        import pydantic
+
+        try:
+            HomeworkBlock(title="t", body="b", format="bogus_format")  # type: ignore[arg-type]
+        except pydantic.ValidationError as exc:
+            assert "format" in str(exc).lower()
+        else:
+            raise AssertionError("expected ValidationError on unknown format")
+
+    def test_empty_format_tolerated(self):
+        """Empty-string is in the Literal — older lesson rows without a
+        format value must still validate so we don't break legacy reads."""
+        block = HomeworkBlock(title="t", body="b", format="")
+        assert block.format == ""
 

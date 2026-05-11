@@ -74,8 +74,63 @@ async def dev_seed():
         hw_block,
         teacher_phone="+2348012345678",
     )
+
+    # V4.2a — also seed a structured-format code so the new homework UI can be
+    # exercised in the browser without an LLM call. Same teacher, different code.
+    adv_code = "ADV001"
+    adv_quiz = quiz[:2]
+    adv_lesson_json = {
+        "version": 1,
+        "meta": {"subject": "Biology", "topic": "Photosynthesis", "class_level": "SS2"},
+        "blocks": [
+            {
+                "type": "homework",
+                "title": "The Oxygen Detective Case",
+                "format": "detective",
+                "narrative": (
+                    "A village's biggest tree is dying. Three witnesses report "
+                    "what they saw last week. Your job: gather evidence and write "
+                    "a detective report explaining what's killing the tree using "
+                    "what you learned about photosynthesis."
+                ),
+                "tasks": [
+                    {
+                        "id": "t1",
+                        "instruction": "Visit one tree near your home. Sketch it in your exercise book.",
+                        "type": "draw",
+                        "exercise_book_format": "1 full page sketch + labels",
+                        "clue": "Notice which side faces the sun.",
+                    },
+                    {
+                        "id": "t2",
+                        "instruction": "Cover one leaf with paper for 2 days. Compare to an uncovered leaf.",
+                        "type": "experiment",
+                        "exercise_book_format": "Before/after drawing + one paragraph",
+                        "clue": "Photosynthesis needs light.",
+                    },
+                    {
+                        "id": "t3",
+                        "instruction": "Write a 1-paragraph detective report naming the most likely cause.",
+                        "type": "write",
+                        "exercise_book_format": "150-200 words",
+                    },
+                ],
+                "completion": "Bring your exercise book to class on Monday. We'll compare findings.",
+            }
+        ],
+    }
+    save_homework_code(
+        adv_code,
+        "dev_seed_adv",
+        "Mock structured lesson content",
+        adv_quiz,
+        "Title: The Oxygen Detective Case\nDetails: see structured payload",
+        teacher_phone="+2348012345678",
+        lesson_json=adv_lesson_json,
+    )
+
     return {
-        "seeded": code,
+        "seeded": [code, adv_code],
         "teacher_slug": teacher.get("slug"),
         "quiz_questions": len(quiz),
     }

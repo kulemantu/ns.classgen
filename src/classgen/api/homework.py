@@ -20,6 +20,7 @@ from classgen.api.schemas import QuizSubmission
 from classgen.data import (
     get_homework_code,
     get_quiz_results,
+    get_teacher_by_phone,
     save_quiz_submission,
 )
 from classgen.integrations.twilio import send_quiz_summary
@@ -57,6 +58,17 @@ async def homework_data(code: str):
         "homework_block": hw["homework_block"],
         "quiz_questions": hw.get("quiz_questions", []),
     }
+
+    # Surface the teacher's name + public slug so students see who set the
+    # homework. Optional — older codes pre-V2.0 may have no teacher_phone.
+    teacher_phone = hw.get("teacher_phone", "")
+    if teacher_phone:
+        teacher = get_teacher_by_phone(teacher_phone)
+        if teacher:
+            response["teacher"] = {
+                "name": teacher.get("name", ""),
+                "slug": teacher.get("slug", ""),
+            }
 
     # Include structured lesson data when available
     lesson_json = hw.get("lesson_json")

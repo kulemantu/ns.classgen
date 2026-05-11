@@ -72,11 +72,28 @@ class ActivityBlock(BaseModel):
     expected_outcome: str = ""
 
 
+HomeworkFormat = Literal[
+    "adventure",
+    "investigation",
+    "creative",
+    "story_problem",
+    "detective",
+    "game",
+    "letter_journal",
+    "",  # tolerated: legacy / older lesson rows where format was never set
+]
+# Single source of truth for the homework-block format enum. Mirrors the
+# enumeration the LLM prompt advertises in `content/prompts.py` (the JSON
+# section's homework block: `"format": "adventure | investigation | ..."`).
+# A test in `tests/test_parsers.py` asserts these stay in lockstep — if you
+# add a value here, also add it to the prompt and vice versa.
+
+
 class HomeworkBlock(BaseModel):
     type: Literal["homework"] = "homework"
     title: str = ""
     body: str = ""
-    format: str = ""  # adventure | investigation | creative | etc.
+    format: HomeworkFormat = ""
     narrative: str = ""
     tasks: list[HomeworkTask] = []
     completion: str = ""

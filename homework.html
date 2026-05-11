@@ -2,18 +2,36 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>ClassGen Homework</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,system-ui,sans-serif;background:#f5f5f5;color:#1a1a1a;line-height:1.5;padding:1rem;max-width:600px;margin:0 auto}
+body{font-family:-apple-system,system-ui,sans-serif;background:#f5f5f5;color:#1a1a1a;line-height:1.5;padding:1rem;max-width:640px;margin:0 auto}
 h1{font-size:1.25rem;color:#4f46e5;margin-bottom:.25rem}
-.subtitle{font-size:.85rem;color:#666;margin-bottom:1.5rem}
+.subtitle{font-size:.85rem;color:#666;margin-bottom:.25rem}
+.teacher-line{font-size:.8rem;color:#666;margin-bottom:1.5rem}
+.teacher-line a{color:#4f46e5;text-decoration:none;font-weight:500}
+.teacher-line a:hover{text-decoration:underline}
 .card{background:#fff;border-radius:12px;padding:1.25rem;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .card h2{font-size:1rem;color:#333;margin-bottom:.5rem}
 .card p{font-size:.9rem;color:#555;white-space:pre-line}
+.format-pill{display:inline-block;background:#eef2ff;color:#4338ca;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:.18rem .55rem;border-radius:9999px;margin-bottom:.5rem}
+.narrative{font-size:.95rem;color:#333;line-height:1.6;margin-bottom:.5rem;white-space:pre-line}
+.task-list{margin-top:.75rem;display:flex;flex-direction:column;gap:.75rem}
+.task-card{background:#fafafa;border:1px solid #e5e7eb;border-radius:10px;padding:.85rem 1rem}
+.task-card .task-num{display:inline-block;background:#4f46e5;color:#fff;width:1.5rem;height:1.5rem;border-radius:50%;text-align:center;line-height:1.5rem;font-size:.78rem;font-weight:700;margin-right:.5rem}
+.task-card .task-instruction{font-size:.9rem;color:#222;font-weight:500;display:inline}
+.task-card .task-meta{margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.4rem;font-size:.72rem;color:#666}
+.task-card .task-meta span{background:#fff;border:1px solid #e5e7eb;padding:.12rem .5rem;border-radius:6px}
+.task-card .task-clue{margin-top:.5rem;font-size:.82rem;color:#475569;font-style:italic;border-left:3px solid #c7d2fe;padding-left:.6rem}
+.completion-note{margin-top:.75rem;padding:.6rem .8rem;background:#fef3c7;border-radius:8px;font-size:.82rem;color:#78350f}
+.quiz-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.quiz-toggle .chev{transition:transform .2s;color:#999;font-size:1.2rem;line-height:1}
+.quiz-toggle.open .chev{transform:rotate(90deg)}
+.quiz-body{display:none;margin-top:.75rem}
+.quiz-body.open{display:block}
 label{display:block;font-size:.85rem;font-weight:600;color:#333;margin-bottom:.25rem;margin-top:.75rem}
-input[type=text]{width:100%;padding:.6rem;border:1px solid #ddd;border-radius:8px;font-size:.9rem}
+input[type=text]{width:100%;padding:.6rem;border:1px solid #ddd;border-radius:8px;font-size:16px}
 input[type=text]:focus{outline:none;border-color:#4f46e5}
 .question{margin-bottom:1.25rem}
 .question p{font-weight:600;font-size:.9rem;margin-bottom:.4rem}
@@ -35,22 +53,28 @@ button[type=submit]:disabled{background:#999;cursor:not-allowed}
 <body>
 <h1>ClassGen Homework</h1>
 <div class="subtitle" id="code-display"></div>
+<div class="teacher-line" id="teacher-line" style="display:none"></div>
 <div id="loading">Loading homework...</div>
 <div id="content" style="display:none">
   <div class="card" id="homework-card">
     <h2 id="hw-title"></h2>
-    <p id="hw-details"></p>
+    <div id="hw-body"></div>
   </div>
-  <div class="card">
-    <h2>Quick Quiz</h2>
-    <form id="quiz-form">
-      <label for="student-name">Your Name</label>
-      <input type="text" id="student-name" required placeholder="e.g. Amina Okafor">
-      <label for="student-class">Your Class</label>
-      <input type="text" id="student-class" required placeholder="e.g. SS2">
-      <div id="questions" style="margin-top:1rem"></div>
-      <button type="submit">Submit Answers</button>
-    </form>
+  <div class="card" id="quiz-card" style="display:none">
+    <div class="quiz-toggle" id="quiz-toggle">
+      <h2>Quick Quiz</h2>
+      <span class="chev">›</span>
+    </div>
+    <div class="quiz-body" id="quiz-body">
+      <form id="quiz-form">
+        <label for="student-name">Your Name</label>
+        <input type="text" id="student-name" required placeholder="e.g. Amina Okafor">
+        <label for="student-class">Your Class</label>
+        <input type="text" id="student-class" required placeholder="e.g. SS2">
+        <div id="questions" style="margin-top:1rem"></div>
+        <button type="submit">Submit Answers</button>
+      </form>
+    </div>
   </div>
 </div>
 <div id="result" style="display:none"></div>
@@ -62,6 +86,77 @@ document.getElementById('code-display').textContent = 'Code: ' + code;
 
 let quizData = [];
 
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+function renderTeacherLine(teacher) {
+  if (!teacher || !teacher.name) return;
+  const line = document.getElementById('teacher-line');
+  const safeName = escapeHtml(teacher.name);
+  if (teacher.slug) {
+    line.innerHTML = 'Set by <a href="/t/' + encodeURIComponent(teacher.slug) + '">' + safeName + '</a>';
+  } else {
+    line.textContent = 'Set by ' + teacher.name;
+  }
+  line.style.display = 'block';
+}
+
+function renderStructuredHomework(hwStructured) {
+  // V4.2a path: render narrative header + task cards + format pill.
+  const titleEl = document.getElementById('hw-title');
+  const bodyEl = document.getElementById('hw-body');
+  titleEl.textContent = hwStructured.title || 'Homework Adventure';
+
+  let html = '';
+  if (hwStructured.format) {
+    html += '<span class="format-pill">' + escapeHtml(hwStructured.format.replace(/_/g, ' ')) + '</span>';
+  }
+  if (hwStructured.narrative) {
+    html += '<div class="narrative">' + escapeHtml(hwStructured.narrative) + '</div>';
+  }
+
+  const tasks = Array.isArray(hwStructured.tasks) ? hwStructured.tasks : [];
+  if (tasks.length > 0) {
+    html += '<div class="task-list">';
+    tasks.forEach(function(t, i) {
+      html += '<div class="task-card">';
+      html += '<span class="task-num">' + (i + 1) + '</span>';
+      html += '<span class="task-instruction">' + escapeHtml(t.instruction || '') + '</span>';
+      const meta = [];
+      if (t.type) meta.push(escapeHtml(t.type));
+      if (t.exercise_book_format) meta.push(escapeHtml(t.exercise_book_format));
+      if (meta.length > 0) {
+        html += '<div class="task-meta">' + meta.map(function(m){return '<span>' + m + '</span>';}).join('') + '</div>';
+      }
+      if (t.clue) {
+        html += '<div class="task-clue">' + escapeHtml(t.clue) + '</div>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  if (hwStructured.completion) {
+    html += '<div class="completion-note">' + escapeHtml(hwStructured.completion) + '</div>';
+  }
+
+  bodyEl.innerHTML = html;
+}
+
+function renderLegacyHomework(homeworkBlock) {
+  // Pre-V4.2a path: regex-parse the text homework_block. Kept for codes
+  // generated before the adventure UI shipped (~14-day TTL handles the rest).
+  const titleMatch = homeworkBlock.match(/Title:\s*(.*?)(?:\n|$)/i);
+  const detailsMatch = homeworkBlock.match(/Details:\s*([\s\S]*?)$/i);
+  document.getElementById('hw-title').textContent =
+    titleMatch ? titleMatch[1].replace(/\*\*/g, '').trim() : 'Homework';
+  const bodyEl = document.getElementById('hw-body');
+  bodyEl.innerHTML = '<p>' + escapeHtml(detailsMatch ? detailsMatch[1].trim() : homeworkBlock) + '</p>';
+}
+
 async function load() {
   try {
     const res = await fetch('/api/h/' + code);
@@ -72,32 +167,42 @@ async function load() {
       document.getElementById('error-msg').textContent = 'Homework code not found. Check the code and try again.';
       return;
     }
+
+    renderTeacherLine(data.teacher);
+
     quizData = data.quiz_questions || [];
 
-    // Homework block
-    const hw = data.homework_block || '';
-    const titleMatch = hw.match(/Title:\s*(.*?)(?:\n|$)/i);
-    const detailsMatch = hw.match(/Details:\s*([\s\S]*?)$/i);
-    document.getElementById('hw-title').textContent = titleMatch ? titleMatch[1].replace(/\*\*/g, '').trim() : 'Homework';
-    document.getElementById('hw-details').textContent = detailsMatch ? detailsMatch[1].trim() : hw;
+    // Prefer the V4.2a structured payload; fall back to legacy text for older codes.
+    if (data.homework_structured) {
+      renderStructuredHomework(data.homework_structured);
+    } else {
+      renderLegacyHomework(data.homework_block || '');
+    }
 
-    // Quiz questions
-    const qContainer = document.getElementById('questions');
-    quizData.forEach(function(q, i) {
-      const div = document.createElement('div');
-      div.className = 'question';
-      div.id = 'q' + i;
-      let html = '<p>' + (i + 1) + '. ' + escapeHtml(q.question) + '</p>';
-      q.options.forEach(function(opt, j) {
-        html += '<label class="option"><input type="radio" name="q' + i + '" value="' + j + '" required> ' + escapeHtml(opt) + '</label>';
+    // Quiz section — collapsible, hidden entirely when there are no questions.
+    if (quizData.length > 0) {
+      const quizCard = document.getElementById('quiz-card');
+      quizCard.style.display = 'block';
+
+      const qContainer = document.getElementById('questions');
+      quizData.forEach(function(q, i) {
+        const div = document.createElement('div');
+        div.className = 'question';
+        div.id = 'q' + i;
+        let html = '<p>' + (i + 1) + '. ' + escapeHtml(q.question) + '</p>';
+        q.options.forEach(function(opt, j) {
+          html += '<label class="option"><input type="radio" name="q' + i + '" value="' + j + '" required> ' + escapeHtml(opt) + '</label>';
+        });
+        div.innerHTML = html;
+        qContainer.appendChild(div);
       });
-      div.innerHTML = html;
-      qContainer.appendChild(div);
-    });
 
-    if (quizData.length === 0) {
-      qContainer.innerHTML = '<p style="color:#666;font-size:.85rem">No quiz questions available for this homework.</p>';
-      document.querySelector('button[type=submit]').style.display = 'none';
+      const toggle = document.getElementById('quiz-toggle');
+      const body = document.getElementById('quiz-body');
+      toggle.addEventListener('click', function() {
+        toggle.classList.toggle('open');
+        body.classList.toggle('open');
+      });
     }
 
     document.getElementById('loading').style.display = 'none';
@@ -107,12 +212,6 @@ async function load() {
     document.getElementById('error-msg').style.display = 'block';
     document.getElementById('error-msg').textContent = 'Could not load homework. Please try again.';
   }
-}
-
-function escapeHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
 }
 
 document.getElementById('quiz-form').addEventListener('submit', async function(e) {
@@ -128,7 +227,6 @@ document.getElementById('quiz-form').addEventListener('submit', async function(e
     return sel ? parseInt(sel.value) : -1;
   });
 
-  // Check all questions answered
   const unanswered = answers.filter(function(a) { return a === -1; }).length;
   if (unanswered > 0) {
     btn.disabled = false;
@@ -145,7 +243,6 @@ document.getElementById('quiz-form').addEventListener('submit', async function(e
     });
     const data = await res.json();
 
-    // Highlight correct/wrong
     data.results.forEach(function(r, i) {
       const qDiv = document.getElementById('q' + i);
       const options = qDiv.querySelectorAll('.option');
@@ -156,7 +253,6 @@ document.getElementById('quiz-form').addEventListener('submit', async function(e
       });
     });
 
-    // Show score
     const resultDiv = document.getElementById('result');
     resultDiv.innerHTML = '<div class="card score-card"><div class="score">' + data.score + '/' + data.total + '</div><div class="label">Well done, ' + escapeHtml(name) + '!</div></div>';
     resultDiv.style.display = 'block';
