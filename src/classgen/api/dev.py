@@ -77,7 +77,7 @@ async def dev_seed():
 
     # V4.2a — also seed a structured-format code so the new homework UI can be
     # exercised in the browser without an LLM call. Same teacher, different code.
-    adv_code = "ADV001"
+    adv_code = "DETC01"
     adv_quiz = quiz[:2]
     adv_lesson_json = {
         "version": 1,
@@ -96,26 +96,38 @@ async def dev_seed():
                 "tasks": [
                     {
                         "id": "t1",
-                        "instruction": "Visit one tree near your home. Sketch it in your exercise book.",
+                        "instruction": (
+                            "Visit one tree near your home. "
+                            "Sketch it in your exercise book."
+                        ),
                         "type": "draw",
                         "exercise_book_format": "1 full page sketch + labels",
                         "clue": "Notice which side faces the sun.",
                     },
                     {
                         "id": "t2",
-                        "instruction": "Cover one leaf with paper for 2 days. Compare to an uncovered leaf.",
+                        "instruction": (
+                            "Cover one leaf with paper for 2 days. "
+                            "Compare to an uncovered leaf."
+                        ),
                         "type": "experiment",
                         "exercise_book_format": "Before/after drawing + one paragraph",
                         "clue": "Photosynthesis needs light.",
                     },
                     {
                         "id": "t3",
-                        "instruction": "Write a 1-paragraph detective report naming the most likely cause.",
+                        "instruction": (
+                            "Write a 1-paragraph detective report "
+                            "naming the most likely cause."
+                        ),
                         "type": "write",
                         "exercise_book_format": "150-200 words",
                     },
                 ],
-                "completion": "Bring your exercise book to class on Monday. We'll compare findings.",
+                "completion": (
+                    "Bring your exercise book to class on Monday. "
+                    "We'll compare findings."
+                ),
             }
         ],
     }

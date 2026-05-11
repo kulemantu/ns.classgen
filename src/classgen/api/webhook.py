@@ -17,10 +17,17 @@ from classgen.content.onboarding import whatsapp_welcome
 from classgen.content.prompts import CLASSGEN_SYSTEM_PROMPT
 from classgen.core.feature_flags import flags
 from classgen.data import get_active_thread, get_teacher_by_phone, save_teacher
+from classgen.data.homework import get_homework_code
 from classgen.data.subscriptions import log_usage
 from classgen.data.teachers import is_onboarded, mark_onboarded
 from classgen.services.billing_service import check_usage
 from classgen.services.llm import LLMUnavailableError, call_openrouter
+
+# Homework codes are 4 uppercase letters + 2 digits (see
+# `services/llm.py:generate_homework_code`). A student texting just the code
+# should get a link back, not the teacher onboarding flow — this regex gates
+# the student-bridge short-circuit below.
+_HOMEWORK_CODE_RE = re.compile(r"^[A-Z]{4}[0-9]{2}$")
 
 router = APIRouter()
 
@@ -98,6 +105,44 @@ async def twilio_webhook(request: Request):
 
     if not body.strip():
         twiml_response.message(whatsapp_welcome(base_url))
+        return Response(content=str(twiml_response), media_type="application/xml")
+
+    # Student bridge: if the message is JUST a homework code, reply with the
+    # link to /h/CODE so the student opens it in their browser (where the
+    # V4.2a adventure UI lives). Sits BEFORE the onboarding gate so students
+    # don't have to register — they're not teachers, they have no business
+    # accepting teacher terms. Channel-asymmetry by design: WhatsApp's job
+    # for students is to bridge to the page, not replicate it.
+    code_candidate = body.strip().upper()
+    if _HOMEWORK_CODE_RE.match(code_candidate):
+        hw = get_homework_code(code_candidate)
+        if hw:
+            teacher_phone = hw.get("teacher_phone", "")
+            teacher_name = ""
+            if teacher_phone:
+                teacher = get_teacher_by_phone(teacher_phone)
+                if teacher:
+                    teacher_name = teacher.get("name", "")
+            link = f"{base_url}/h/{code_candidate}"
+            if teacher_name:
+                reply = (
+                    f"Homework *{code_candidate}* — set by *{teacher_name}*.\n\n"
+                    f"Open it here:\n{link}"
+                )
+            else:
+                reply = (
+                    f"Homework *{code_candidate}* is ready.\n\n"
+                    f"Open it here:\n{link}"
+                )
+            twiml_response.message(reply)
+            return Response(content=str(twiml_response), media_type="application/xml")
+        # Looks like a code but no match — give the student something useful
+        # rather than dumping them into teacher onboarding.
+        twiml_response.message(
+            f"We couldn't find homework code *{code_candidate}*. "
+            "Double-check with your teacher — codes are 4 letters + 2 digits, "
+            'like "MATH42".'
+        )
         return Response(content=str(twiml_response), media_type="application/xml")
 
     # Onboarding: check if user has accepted terms

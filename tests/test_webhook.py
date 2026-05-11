@@ -219,6 +219,122 @@ class TestNonAudioMedia:
 
 
 # ---------------------------------------------------------------------------
+# Student bridge — homework-code short-circuit
+# ---------------------------------------------------------------------------
+
+
+class TestHomeworkCodeStudentBridge:
+    """When a WhatsApp number sends JUST a homework code (`MATH42` shape),
+    reply with the link to the homework page so the student opens it in
+    their browser. Channel-asymmetry by design: WhatsApp's role for
+    students is to bridge to the page, not replicate the UI."""
+
+    def setup_method(self):
+        from classgen.data.homework import _mem_homework
+        from classgen.data.teachers import _mem_teachers
+
+        _mem_homework.clear()
+        _mem_teachers.clear()
+
+    def teardown_method(self):
+        from classgen.data.homework import _mem_homework
+        from classgen.data.teachers import _mem_teachers
+
+        _mem_homework.clear()
+        _mem_teachers.clear()
+
+    def _seed_code(self, code: str, teacher_phone: str = "") -> None:
+        from classgen.data.homework import save_homework_code
+
+        save_homework_code(
+            code,
+            "thread_seed",
+            "raw",
+            [{"question": "Q", "options": ["A", "B", "C", "D"], "correct": 0}],
+            "Title: Test\nDetails: Test homework",
+            teacher_phone=teacher_phone,
+        )
+
+    def test_known_code_returns_link_with_teacher_name(self):
+        """A student texting the code gets a link + the teacher's name."""
+        from classgen.data.teachers import save_teacher
+
+        save_teacher("+23488776655", name="Mrs. Okafor", country="Nigeria")
+        self._seed_code("MATH42", teacher_phone="+23488776655")
+
+        response = client.post(
+            "/webhook/twilio",
+            data={"From": "whatsapp:+27725550199", "Body": "MATH42"},
+        )
+
+        assert response.status_code == 200
+        body = response.text
+        assert "MATH42" in body
+        assert "Mrs. Okafor" in body
+        assert "/h/MATH42" in body
+        # Must NOT route through teacher onboarding for the student
+        assert "Reply" not in body or "YES" not in body
+        assert "Welcome to ClassGen" not in body
+
+    def test_known_code_works_without_teacher(self):
+        """Legacy / anonymous codes (no teacher_phone) still bridge cleanly."""
+        self._seed_code("ANON42")
+
+        response = client.post(
+            "/webhook/twilio",
+            data={"From": "whatsapp:+27725550111", "Body": "ANON42"},
+        )
+
+        assert response.status_code == 200
+        body = response.text
+        assert "ANON42" in body
+        assert "/h/ANON42" in body
+        # No teacher name should appear when no teacher is registered
+        assert "set by" not in body.lower()
+
+    def test_unknown_code_returns_helpful_message_not_onboarding(self):
+        """A code-shaped string that doesn't exist gets a student-friendly
+        'not found' message — never the teacher welcome flow."""
+        response = client.post(
+            "/webhook/twilio",
+            data={"From": "whatsapp:+27725550222", "Body": "WXYZ99"},
+        )
+
+        assert response.status_code == 200
+        body = response.text
+        assert "couldn't find" in body.lower() or "couldn&#39;t find" in body.lower()
+        assert "WXYZ99" in body
+        assert "Welcome to ClassGen" not in body  # never the onboarding path
+
+    def test_case_insensitive_code(self):
+        """A student texting 'math42' (lowercase) is treated identically."""
+        self._seed_code("MATH42")
+
+        response = client.post(
+            "/webhook/twilio",
+            data={"From": "whatsapp:+27725550333", "Body": "math42"},
+        )
+
+        assert response.status_code == 200
+        assert "/h/MATH42" in response.text
+
+    def test_non_code_message_falls_through_normally(self):
+        """A body that doesn't match the code shape (`MATH42` exactly) still
+        hits the existing onboarding/command flow — we haven't broken anything."""
+        response = client.post(
+            "/webhook/twilio",
+            data={"From": "whatsapp:+27725550444", "Body": "Help me with MATH42"},
+        )
+
+        assert response.status_code == 200
+        body = response.text
+        # Code-bridge path requires the ENTIRE body to match. "Help me with
+        # MATH42" should fall through to onboarding (this number is not
+        # onboarded, so it sees the welcome).
+        assert "/h/MATH42" not in body
+
+
+# ---------------------------------------------------------------------------
 # LLM unavailable -> friendly TwiML retry message
 # ---------------------------------------------------------------------------
 
