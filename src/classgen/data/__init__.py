@@ -7,8 +7,10 @@ Re-exports all public functions for convenience so callers can do:
 from .client import supabase
 from .homework import (
     HOMEWORK_CODE_TTL_DAYS,
+    build_homework_url,
     get_homework_code,
     list_homework_codes_for_teacher,
+    next_homework_seq,
     save_homework_code,
 )
 from .lessons import (
@@ -90,9 +92,11 @@ __all__ = [
     "get_teacher_lesson_stats",
     # homework
     "HOMEWORK_CODE_TTL_DAYS",
+    "build_homework_url",
     "save_homework_code",
     "get_homework_code",
     "list_homework_codes_for_teacher",
+    "next_homework_seq",
     # quiz
     "save_quiz_submission",
     "get_quiz_results",

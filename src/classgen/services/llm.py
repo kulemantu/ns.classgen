@@ -192,8 +192,39 @@ async def stream_openrouter(
             print(f"Error streaming OpenRouter: {e}")
 
 
-def generate_homework_code() -> str:
-    """Generate a 6-character homework code like MATH42."""
+def _random_homework_code() -> str:
+    """Pure-random fallback: 4 uppercase letters + 2 digits, e.g. ZQXJ73."""
     letters = "".join(random.choices(string.ascii_uppercase, k=4))
     digits = "".join(random.choices(string.digits, k=2))
     return letters + digits
+
+
+def generate_homework_code(teacher_phone: str = "", subject: str = "") -> str:
+    """Generate a 6-character homework code.
+
+    When both ``teacher_phone`` and ``subject`` are provided AND the
+    subject maps to a known 4-letter prefix, claims the next per-(teacher,
+    subject) sequence number and returns a mnemonic code like ``BIOL07``
+    or ``MATH42``. Falls back to pure random in any of:
+
+    * either argument missing (legacy call sites)
+    * subject doesn't match the prefix map (off-curriculum topic)
+    * the counter has run past 99 for that (teacher, subject) pair
+
+    Global uniqueness across ``homework_codes.code`` is the caller's
+    responsibility: a separate seq doesn't prove the resulting code is
+    free globally. ``_finalize_lesson`` handles collision retries.
+    """
+    if teacher_phone and subject:
+        # Local imports to avoid a circular import between services.llm
+        # and data.homework -- the data layer doesn't need to know about
+        # this generator.
+        from classgen.content.subjects import derive_subject_prefix
+        from classgen.data.homework import next_homework_seq
+
+        prefix = derive_subject_prefix(subject)
+        if prefix:
+            seq = next_homework_seq(teacher_phone, prefix)
+            if 1 <= seq <= 99:
+                return f"{prefix}{seq:02d}"
+    return _random_homework_code()
