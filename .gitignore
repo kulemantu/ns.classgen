@@ -26,6 +26,10 @@ static/*.pdf
 
 # Playwright MCP
 .playwright-mcp/
+# Playwright defaults to repo root for ad-hoc screenshots/traces — block leaks at root.
+/*.png
+/*.webm
+/*.trace.zip
 
 # Session management (see global working-sessions.md rules)
 .local/
