@@ -32,12 +32,17 @@ uv run ruff format .
 uv run pyright
 
 # Docker local dev (app + Postgres + PostgREST + Redis)
+# Compose project name is pinned to ns-classgen and container names to
+# classgen-{app,db,rest,redis} so the same identifiers work locally and
+# in prod. Address containers by their literal names rather than `docker
+# compose exec <service>` -- otherwise a sibling project that uses the
+# same service name on this host could match.
 docker compose up -d --build
-docker compose exec app /app/.venv/bin/python -m migrations.runner
+docker exec classgen-app /app/.venv/bin/python -m migrations.runner
 
 # Migrations (requires DATABASE_URL or running Postgres)
-docker compose exec app /app/.venv/bin/python -m migrations.runner          # apply pending
-docker compose exec app /app/.venv/bin/python -m migrations.runner status   # show applied/pending
+docker exec classgen-app /app/.venv/bin/python -m migrations.runner          # apply pending
+docker exec classgen-app /app/.venv/bin/python -m migrations.runner status   # show applied/pending
 ```
 
 ## Architecture (V4.1)
@@ -148,7 +153,7 @@ Only `OPENROUTER_API_KEY` is required to run locally without Docker. See `.env.e
 
 Docker compose sets `SUPABASE_URL`, `SUPABASE_KEY`, `DATABASE_URL`, `REDIS_URL`, and `APP_ROOT` automatically. Feature flags (`FF_*`) can be set in `docker-compose.override.yml` (gitignored) for local dev.
 
-**Important**: After running DDL migrations, always restart PostgREST (`docker compose restart rest`) to refresh its schema cache.
+**Important**: After running DDL migrations, always restart PostgREST (`docker restart classgen-rest`) to refresh its schema cache.
 
 ## Mock Testing Tools
 

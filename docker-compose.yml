@@ -1,12 +1,21 @@
 # Local development stack for ClassGen
 # Usage: docker compose up -d
-# The app connects to Postgres via Supabase client (PostgREST).
-# Redis is available for future session/cache use.
+#
+# Project name is pinned to ns-classgen and container names are pinned to
+# classgen-{app,db,rest,redis} so local and prod use the same identifiers.
+# This avoids the project-name collision that surfaced when ns.no-forms and
+# this project both deployed from a deploy/ subdir on the same host (both
+# auto-derived "deploy" as the compose project name and ended up sharing
+# label namespace). Pinning names here keeps `docker exec classgen-app` and
+# `docker restart classgen-rest` predictable on both targets.
+
+name: ns-classgen
 
 services:
   # --- ClassGen App ---
   app:
     build: .
+    container_name: classgen-app
     ports:
       - "8000:8000"
     env_file: .env
@@ -29,6 +38,7 @@ services:
   # --- Postgres (Supabase-compatible) ---
   db:
     image: postgres:16-alpine
+    container_name: classgen-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
@@ -46,8 +56,13 @@ services:
       retries: 5
 
   # --- PostgREST (provides the REST API that the Supabase client talks to) ---
+  # Reachable as ``http://rest:3000`` from inside the compose network --
+  # no host port mapping so we don't collide with the typical localhost:3000
+  # used by Next/Vite dev servers. Add a `ports:` block locally if you need
+  # to curl PostgREST directly from the host.
   rest:
     image: postgrest/postgrest:v12.2.3
+    container_name: classgen-rest
     restart: unless-stopped
     environment:
       PGRST_DB_URI: postgres://postgres:postgres@db:5432/classgen
@@ -55,8 +70,6 @@ services:
       PGRST_DB_ANON_ROLE: classgen_api
       PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters
       PGRST_SERVER_PORT: "3000"
-    ports:
-      - "3000:3000"
     depends_on:
       db:
         condition: service_healthy
@@ -64,6 +77,7 @@ services:
   # --- Redis (session cache, rate limiting, future use) ---
   redis:
     image: redis:7-alpine
+    container_name: classgen-redis
     restart: unless-stopped
     ports:
       - "6380:6379"
