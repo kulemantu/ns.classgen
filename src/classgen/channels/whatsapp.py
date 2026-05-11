@@ -47,6 +47,7 @@ class WhatsAppAdapter(ChannelAdapter):
         homework_code: str | None = None,
         pdf_url: str | None = None,
         base_url: str = "",
+        homework_url: str | None = None,
     ) -> str:
         parts = ["*ClassGen Lesson Pack*\n"]
 
@@ -56,7 +57,11 @@ class WhatsAppAdapter(ChannelAdapter):
 
         if homework_code:
             parts.append(f"\n*Homework Code:* {homework_code}")
-            parts.append(f"Students visit: {base_url}/h/{homework_code}")
+            # Caller (api/webhook.py) builds the teacher-scoped URL when the
+            # teacher is known; fall back to the legacy /h/{code} form
+            # otherwise so the channel layer stays decoupled from data.
+            link = homework_url or f"{base_url}/h/{homework_code}"
+            parts.append(f"Students visit: {link}")
 
         parts.append("\nFull lesson plan attached as PDF.")
         return "\n".join(parts)

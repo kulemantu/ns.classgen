@@ -22,6 +22,7 @@ from classgen.core.feature_flags import flags
 from classgen.core.models import HomeworkBlock, LessonPack
 from classgen.core.parsers import parse_clarification, parse_lesson_response
 from classgen.data import (
+    build_homework_url,
     cache_lesson,
     get_cached_lesson,
     get_session_history,
@@ -304,19 +305,38 @@ async def _finalize_lesson(
         pdf_filename, quiz_questions = await asyncio.gather(_build_pdf(), _build_quiz())
         pdf_url = f"/static/{pdf_filename}" if pdf_filename else None
 
+        # Generate + save with collision retry. Mnemonic codes (MATH07,
+        # BIOL12) share a smaller global namespace than the legacy random
+        # codes, so global collisions are an expected (rare) outcome --
+        # bump the per-(teacher, subject) seq and retry instead of failing.
+        # After 8 mnemonic attempts, fall back to pure-random for the last
+        # two so a teacher rarely loses the homework link entirely.
+        homework_code = None
         try:
-            homework_code = generate_homework_code()
-            save_homework_code(
-                homework_code,
-                thread_id,
-                assistant_reply,
-                quiz_questions,
-                homework_block_text,
-                teacher_phone=teacher_phone,
-                lesson_json=(
-                    lesson_pack.model_dump() if (lesson_pack and flags.structured_output) else None
-                ),
-            )
+            for attempt in range(10):
+                use_random = attempt >= 8
+                candidate = (
+                    generate_homework_code()
+                    if use_random
+                    else generate_homework_code(teacher_phone, subject)
+                )
+                saved = save_homework_code(
+                    candidate,
+                    thread_id,
+                    assistant_reply,
+                    quiz_questions,
+                    homework_block_text,
+                    teacher_phone=teacher_phone,
+                    lesson_json=(
+                        lesson_pack.model_dump()
+                        if (lesson_pack and flags.structured_output)
+                        else None
+                    ),
+                )
+                if saved:
+                    homework_code = candidate
+                    break
+                print(f"[homework] code collision on {candidate} attempt={attempt + 1}")
         except Exception as e:
             print(f"Error generating homework code: {e}")
             homework_code = None
@@ -386,6 +406,9 @@ async def local_chat_endpoint(req: ChatRequest, request: Request):
         "reply": assistant_reply,
         "pdf_url": pdf_url,
         "homework_code": homework_code,
+        "homework_url": (
+            build_homework_url(base_url, homework_code, teacher_phone) if homework_code else None
+        ),
     }
 
     # When structured output is on, include the lesson pack for the frontend
@@ -560,9 +583,18 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
                     print(f"Error in stream cache finalization: {e}")
                     pdf_url = None
                     homework_code = None
+                hw_url = (
+                    build_homework_url(base_url, homework_code, teacher_phone)
+                    if homework_code
+                    else None
+                )
                 yield _sse_event(
                     "done",
-                    {"pdf_url": pdf_url, "homework_code": homework_code},
+                    {
+                        "pdf_url": pdf_url,
+                        "homework_code": homework_code,
+                        "homework_url": hw_url,
+                    },
                 )
                 return
 
@@ -652,6 +684,11 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
             {
                 "pdf_url": pdf_url,
                 "homework_code": homework_code,
+                "homework_url": (
+                    build_homework_url(base_url, homework_code, teacher_phone)
+                    if homework_code
+                    else None
+                ),
             },
         )
 

@@ -1,11 +1,21 @@
 """Homework and quiz API router.
 
 Routes:
-- GET  /h/{code}             Serve homework quiz page
-- GET  /api/h/{code}         Homework data JSON
-- POST /h/{code}/submit      Grade + store quiz submission
-- GET  /h/{code}/results     Serve teacher results page
-- GET  /api/h/{code}/results Results data JSON
+- GET  /h/{code}                          Serve homework quiz page (legacy)
+- GET  /api/h/{code}                      Homework data JSON (legacy)
+- POST /h/{code}/submit                   Grade + store quiz submission (legacy)
+- GET  /h/{code}/results                  Serve teacher results page (legacy)
+- GET  /api/h/{code}/results              Results data JSON (legacy)
+- GET  /h/{teacher_slug}/{code}           Teacher-scoped quiz page
+- GET  /api/h/{teacher_slug}/{code}       Teacher-scoped data JSON
+- POST /h/{teacher_slug}/{code}/submit    Teacher-scoped submit
+- GET  /h/{teacher_slug}/{code}/results   Teacher-scoped results page
+- GET  /api/h/{teacher_slug}/{code}/results  Teacher-scoped results JSON
+
+Codes are globally unique (init.sql); the teacher_slug is a display/attribution
+layer. ``/h/{slug}/{code}`` 404s when the code doesn't belong to that teacher
+so we don't leak codes via a wrong-slug enumeration. Legacy ``/h/{code}``
+keeps working during the migration window.
 """
 
 from __future__ import annotations
@@ -20,6 +30,7 @@ from classgen.api.schemas import QuizSubmission
 from classgen.data import (
     get_homework_code,
     get_quiz_results,
+    get_teacher_by_phone,
     save_quiz_submission,
 )
 from classgen.integrations.twilio import send_quiz_summary
@@ -28,6 +39,27 @@ from classgen.services.notification_service import notify_quiz_submission
 router = APIRouter()
 
 _APP_ROOT = Path(os.environ.get("APP_ROOT", str(Path(__file__).resolve().parents[3])))
+
+
+def _homework_for_teacher(code: str, teacher_slug: str) -> dict | None:
+    """Look up homework by code and verify it belongs to ``teacher_slug``.
+
+    Returns the homework record on match, ``None`` otherwise (covers both
+    "code not found" and "code exists but belongs to a different teacher").
+    The 404-by-default avoids surfacing the same code under multiple slugs.
+    """
+    hw = get_homework_code(code.upper())
+    if not hw:
+        return None
+    teacher_phone = hw.get("teacher_phone", "")
+    if not teacher_phone:
+        # Pre-mnemonic codes don't have a teacher_phone -- they're only
+        # reachable via legacy /h/{code}, not the scoped route.
+        return None
+    teacher = get_teacher_by_phone(teacher_phone)
+    if not teacher or teacher.get("slug") != teacher_slug:
+        return None
+    return hw
 
 
 @router.get("/h/{code}", response_class=HTMLResponse)
@@ -212,3 +244,70 @@ async def homework_results_data(code: str):
         ],
         "question_stats": question_stats,
     }
+
+
+# ---------------------------------------------------------------------------
+# Teacher-scoped routes
+#
+# Same behavior as the legacy routes above, but the URL includes the
+# teacher's slug for attribution (and so a teacher can share a branded
+# link). The slug is validated against the homework record's
+# teacher_phone -- a mismatched slug 404s rather than silently serving the
+# code under a wrong teacher.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/h/{teacher_slug}/{code}", response_class=HTMLResponse)
+async def homework_page_scoped(teacher_slug: str, code: str):
+    """Teacher-scoped quiz page."""
+    if not _homework_for_teacher(code, teacher_slug):
+        return HTMLResponse(
+            "<h1>Homework code not found</h1><p>Check the code and try again.</p>",
+            status_code=404,
+        )
+    homework_path = _APP_ROOT / "homework.html"
+    if not homework_path.exists():
+        return HTMLResponse("<h1>Quiz page not available</h1>", status_code=500)
+    return FileResponse(str(homework_path))
+
+
+@router.get("/api/h/{teacher_slug}/{code}")
+async def homework_data_scoped(teacher_slug: str, code: str):
+    """Teacher-scoped homework data JSON. Same shape as ``/api/h/{code}``."""
+    if not _homework_for_teacher(code, teacher_slug):
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    # Reuse the legacy handler -- response shape is identical; only the URL
+    # carries the teacher_slug.
+    return await homework_data(code)
+
+
+@router.post("/h/{teacher_slug}/{code}/submit")
+async def submit_quiz_scoped(
+    request: Request, teacher_slug: str, code: str, submission: QuizSubmission
+):
+    """Teacher-scoped quiz submission."""
+    if not _homework_for_teacher(code, teacher_slug):
+        return JSONResponse({"error": "Homework code not found"}, status_code=404)
+    return await submit_quiz(request, code, submission)
+
+
+@router.get("/h/{teacher_slug}/{code}/results", response_class=HTMLResponse)
+async def homework_results_page_scoped(teacher_slug: str, code: str):
+    """Teacher-scoped teacher-results page."""
+    if not _homework_for_teacher(code, teacher_slug):
+        return HTMLResponse(
+            "<h1>Homework code not found</h1><p>Check the code and try again.</p>",
+            status_code=404,
+        )
+    results_path = _APP_ROOT / "results.html"
+    if not results_path.exists():
+        return HTMLResponse("<h1>Results page not available</h1>", status_code=500)
+    return FileResponse(str(results_path))
+
+
+@router.get("/api/h/{teacher_slug}/{code}/results")
+async def homework_results_data_scoped(teacher_slug: str, code: str):
+    """Teacher-scoped results data JSON."""
+    if not _homework_for_teacher(code, teacher_slug):
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    return await homework_results_data(code)

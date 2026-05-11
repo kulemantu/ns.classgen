@@ -17,6 +17,7 @@ from classgen.content.onboarding import whatsapp_welcome
 from classgen.content.prompts import CLASSGEN_SYSTEM_PROMPT
 from classgen.core.feature_flags import flags
 from classgen.data import get_active_thread, get_teacher_by_phone, save_teacher
+from classgen.data.homework import build_homework_url
 from classgen.data.subscriptions import log_usage
 from classgen.data.teachers import is_onboarded, mark_onboarded
 from classgen.services.billing_service import check_usage
@@ -30,7 +31,12 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 
-def _whatsapp_summary(lesson_text: str, homework_code: str | None, base_url: str) -> str:
+def _whatsapp_summary(
+    lesson_text: str,
+    homework_code: str | None,
+    base_url: str,
+    teacher_phone: str = "",
+) -> str:
     """Create a WhatsApp-friendly summary (under 1500 chars) from a full lesson pack."""
     titles = re.findall(
         r"\[BLOCK_START_(\w+)\].*?Title:\s*\*{0,2}(.*?)\*{0,2}\s*(?:\n|$)",
@@ -52,7 +58,8 @@ def _whatsapp_summary(lesson_text: str, homework_code: str | None, base_url: str
 
     if homework_code:
         parts.append(f"\n*Homework Code:* {homework_code}")
-        parts.append(f"Students visit: {base_url}/h/{homework_code}")
+        url = build_homework_url(base_url, homework_code, teacher_phone)
+        parts.append(f"Students visit: {url}")
 
     parts.append("\nFull lesson plan attached as PDF.")
     return "\n".join(parts)
@@ -189,20 +196,27 @@ async def twilio_webhook(request: Request):
     if has_content and (len(ai_response_text) > 1500 or lesson_pack):
         if lesson_pack and flags.structured_output:
             wa_adapter = WhatsAppAdapter()
+            hw_url = (
+                build_homework_url(base_url, homework_code, phone) if homework_code else None
+            )
             reply_text = wa_adapter.render_lesson(
-                lesson_pack, homework_code=homework_code, base_url=base_url
+                lesson_pack,
+                homework_code=homework_code,
+                base_url=base_url,
+                homework_url=hw_url,
             )
         else:
-            reply_text = _whatsapp_summary(ai_response_text, homework_code, base_url)
+            reply_text = _whatsapp_summary(
+                ai_response_text, homework_code, base_url, teacher_phone=phone
+            )
         # Add navigation hint when a lesson flow was stored
         if lesson_pack:
             reply_text += "\n\nReply 'sections' to browse the full lesson."
     else:
         reply_text = ai_response_text
         if homework_code:
-            reply_text += (
-                f"\n\nHomework Code: {homework_code}\nStudents visit: {base_url}/h/{homework_code}"
-            )
+            hw_url = build_homework_url(base_url, homework_code, phone)
+            reply_text += f"\n\nHomework Code: {homework_code}\nStudents visit: {hw_url}"
 
     msg = twiml_response.message(reply_text)
 

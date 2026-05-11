@@ -312,7 +312,7 @@
                 }
                 if (data.homework_code) {
                     const hwLink = document.createElement('a');
-                    hwLink.href = '/h/' + encodeURIComponent(data.homework_code); hwLink.target = '_blank';
+                    hwLink.href = data.homework_url || ('/h/' + encodeURIComponent(data.homework_code)); hwLink.target = '_blank';
                     hwLink.className = 'lesson-action-btn';
                     hwLink.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> Homework: ' + escapeHtml(data.homework_code);
                     actions.appendChild(hwLink);
@@ -566,9 +566,13 @@
                 ? t.classes.map(c => `<span class="sidebar-badge">${escapeHtml(c)}<button class="remove-class" onclick="removeClass('${escapeHtml(c)}')">&times;</button></span>`).join('')
                 : `<span style="color:var(--sidebar-muted);font-size:0.8rem">No classes added yet</span>`;
 
+            const slug = t.slug || '';
+            const hwHref = (code) => slug
+                ? `/h/${encodeURIComponent(slug)}/${encodeURIComponent(code)}`
+                : `/h/${encodeURIComponent(code)}`;
             const codesHtml = codes.length
                 ? '<ul class="sidebar-code-list">' + codes.map(c =>
-                    `<li><a href="/h/${escapeHtml(c.code)}" target="_blank">${escapeHtml(c.code)}</a><span class="sidebar-code-title">${escapeHtml(c.title)}</span></li>`
+                    `<li><a href="${hwHref(c.code)}" target="_blank">${escapeHtml(c.code)}</a><span class="sidebar-code-title">${escapeHtml(c.title)}</span></li>`
                   ).join('') + '</ul>'
                 : `<span style="color:var(--sidebar-muted);font-size:0.8rem">Generate a lesson to create homework codes</span>`;
 
