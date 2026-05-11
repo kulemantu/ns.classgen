@@ -498,7 +498,7 @@ async def stream_chat_endpoint(req: ChatRequest, request: Request):
             )
             recap = await call_openrouter(CLASSGEN_SYSTEM_PROMPT, study_prompt)
             return {
-                "reply": recap or "Could not generate.",
+                "reply": recap or "Could not generate a recap right now. Try again.",
                 "pdf_url": None,
                 "homework_code": None,
             }

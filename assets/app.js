@@ -372,10 +372,11 @@
                     body: JSON.stringify({ message: text, thread_id: threadId })
                 });
                 if (!response.ok) {
-                    let msg = 'Server error. Please try again.';
-                    let retryable = response.status >= 500;
+                    let msg = "Our side hiccupped. Try once more — we'll get notified if it persists.";
+                    // 5xx and 429 (rate-limited) are both retryable from the client's perspective.
+                    let retryable = response.status >= 500 || response.status === 429;
                     if (response.status === 422) {
-                        msg = 'Message too long or invalid.';
+                        msg = "Message looks too long or empty. Try a shorter prompt — e.g. \"SS2 Biology: Photosynthesis\".";
                         retryable = false;
                     } else {
                         try {

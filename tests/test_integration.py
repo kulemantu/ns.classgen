@@ -7,6 +7,7 @@ These verify that the restructured imports actually connect correctly at runtime
 
 from __future__ import annotations
 
+import os
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
@@ -122,6 +123,44 @@ class TestWebChatLessonGeneration:
         assert detail["error"] == "llm_unavailable"
         assert detail["retryable"] is True
         assert "try again" in detail["message"].lower()
+
+    @patch.dict(
+        os.environ,
+        {"FF_STRUCTURED_OUTPUT": "true", "FF_SSE_STREAMING": "true"},
+    )
+    @patch("classgen.api.chat.log_session")
+    @patch("classgen.api.chat.get_session_history", return_value=[])
+    @patch("classgen.api.chat.stream_openrouter")
+    def test_chat_stream_emits_error_event_when_llm_empty(
+        self, mock_stream, _mock_hist, _mock_log
+    ):
+        """When `stream_openrouter` yields nothing (upstream LLM unavailable),
+        `/api/chat/stream` must emit an `event: error` SSE frame carrying the
+        same `llm_unavailable` envelope as the blocking endpoint's 502 — so the
+        frontend can render the same retry bubble on either path."""
+
+        async def empty_stream(*_args, **_kwargs):
+            # Async generator that yields no tokens — simulates an LLM that
+            # exhausted retries (call_openrouter / stream returned no content).
+            return
+            yield  # pragma: no cover — make this a generator
+
+        mock_stream.side_effect = empty_stream
+
+        response = client.post(
+            "/api/chat/stream",
+            json={
+                "message": "SS1 Maths: Algebra",
+                "thread_id": "test_stream_001",
+            },
+        )
+
+        assert response.status_code == 200  # SSE streams always 200
+        body = response.text
+        assert "event: error" in body
+        # JSON-serialized LLM_UNAVAILABLE_DETAIL appears in the data line
+        assert '"error": "llm_unavailable"' in body
+        assert '"retryable": true' in body
 
 
 # ---------------------------------------------------------------------------

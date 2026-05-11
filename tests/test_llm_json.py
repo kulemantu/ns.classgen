@@ -3,7 +3,9 @@
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+from openai import APIConnectionError
 
 from classgen.services.llm import (
     call_openrouter_json,
@@ -88,6 +90,57 @@ class TestCallOpenrouterJson:
             result = await call_openrouter_json("sys", "user")
 
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_retries_on_transient_error_with_response_format(self):
+        """With FF_JSON_RESPONSE_FORMAT=true, an APIConnectionError on attempt 1
+        is classified as transient and retried once with backoff; attempt 2 succeeds."""
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(message=MagicMock(content='{"recovered":true}'))]
+
+        call_count = 0
+
+        async def mock_create(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise APIConnectionError(
+                    request=httpx.Request("POST", "https://openrouter.ai/x")
+                )
+            return mock_completion
+
+        with (
+            patch.dict(os.environ, {"FF_JSON_RESPONSE_FORMAT": "true"}, clear=True),
+            patch("classgen.services.llm.openrouter_client") as mock_client,
+            patch("classgen.services.llm.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
+            mock_client.chat.completions.create = mock_create
+            result = await call_openrouter_json("sys", "user")
+
+        assert result == '{"recovered":true}'
+        assert call_count == 2  # first attempt raised, retry succeeded
+        mock_sleep.assert_awaited_once()  # backoff happened between attempts
+
+    @pytest.mark.asyncio
+    async def test_returns_none_after_two_transient_failures_with_response_format(self):
+        """Both attempts hit transient errors -> return None, never raises."""
+        attempts = 0
+
+        async def mock_create(**kwargs):
+            nonlocal attempts
+            attempts += 1
+            raise APIConnectionError(request=httpx.Request("POST", "https://openrouter.ai/x"))
+
+        with (
+            patch.dict(os.environ, {"FF_JSON_RESPONSE_FORMAT": "true"}, clear=True),
+            patch("classgen.services.llm.openrouter_client") as mock_client,
+            patch("classgen.services.llm.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_client.chat.completions.create = mock_create
+            result = await call_openrouter_json("sys", "user")
+
+        assert result is None
+        assert attempts == 2
 
     @pytest.mark.asyncio
     async def test_returns_none_on_error_without_flag(self):

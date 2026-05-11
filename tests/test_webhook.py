@@ -219,6 +219,62 @@ class TestNonAudioMedia:
 
 
 # ---------------------------------------------------------------------------
+# LLM unavailable -> friendly TwiML retry message
+# ---------------------------------------------------------------------------
+
+
+class TestLLMUnavailableTwiML:
+    """When the LLM call exhausts retries inside `_generate_lesson`, the
+    webhook catches `LLMUnavailableError` and replies with a TwiML message
+    that asks the teacher to send the message again. Channel-appropriate UX
+    for the same failure that returns a 502 envelope on the web endpoint."""
+
+    @patch("classgen.api.webhook.check_usage")
+    @patch("classgen.api.webhook.log_usage")
+    @patch("classgen.api.webhook.handle_command", return_value=None)
+    @patch("classgen.api.chat.generate_pdf_from_markdown")
+    @patch("classgen.api.chat.get_session_history", return_value=[])
+    @patch("classgen.api.chat.log_session")
+    @patch(
+        "classgen.api.chat.call_openrouter",
+        new_callable=AsyncMock,
+        return_value=None,  # exhausted-retries sentinel inside _generate_lesson
+    )
+    def test_returns_friendly_twiml_when_llm_returns_none(
+        self,
+        mock_llm,
+        mock_log,
+        mock_hist,
+        mock_pdf,
+        mock_cmd,
+        mock_log_usage,
+        mock_check,
+    ):
+        """call_openrouter returning None makes `_generate_lesson` raise
+        LLMUnavailableError; the webhook should swallow it and reply with
+        the 'Couldn't reach the AI just now' TwiML, not 500 or empty body."""
+        mock_check.return_value = type(
+            "U",
+            (),
+            {"allowed": True, "remaining": 5, "tier": "free", "message": ""},
+        )()
+
+        response = client.post(
+            "/webhook/twilio",
+            data={
+                "From": "whatsapp:+23412345678",
+                "Body": "SS2 Biology: Photosynthesis, 40 mins",
+            },
+        )
+
+        assert response.status_code == 200  # never bleed 5xx to Twilio
+        assert "Couldn't reach the AI" in response.text
+        assert "send your message again" in response.text
+        # The PDF generator must NOT have been called (no content produced)
+        mock_pdf.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # _whatsapp_summary format
 # ---------------------------------------------------------------------------
 
