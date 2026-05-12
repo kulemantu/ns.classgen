@@ -1,0 +1,169 @@
+name: Deploy
+
+# Tag-triggered deploy to class.dater.world (165.22.80.123).
+#
+# Trigger model:
+#   - Push a tag matching v* (e.g. v4.2.0, v4.2.1-hotfix1) on master.
+#     CI tests run; if they pass, the SSH-deploy job fires automatically.
+#   - workflow_dispatch with an optional `ref` input (tag, branch, or SHA)
+#     for emergency redeploys or to roll back to an earlier good commit.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   DEPLOY_SSH_PRIVATE_KEY   The private key whose pubkey is in
+#                            /root/.ssh/authorized_keys on the server.
+#                            Generate with:
+#                              ssh-keygen -t ed25519 -C "classgen-ci" \
+#                                -f classgen-ci -N ""
+#                            Add the pubkey to the server, paste the
+#                            private key into this secret. Safe to reuse
+#                            the existing noforms-ci key -- same host.
+#   DEPLOY_SSH_KNOWN_HOSTS   Output of `ssh-keyscan -H 165.22.80.123`.
+#                            Pins the host key fingerprint to prevent
+#                            MitM if DNS or routing changes.
+#
+# This workflow assumes:
+#   - deploy/.env.prod is already on the server at
+#     /var/opt/ns.classgen/deploy/.env.prod (it does NOT push secrets).
+#   - The prod compose file has `name: ns-classgen` pinned (mirrored
+#     from docker-compose.yml in 7839a3f). Without that, docker compose
+#     auto-derives "deploy" from the parent dir and collides with the
+#     sibling ns.no-forms deploy on the same host.
+#
+# Alpha-testing notes (why this workflow looks like it does):
+#   - Tag-only trigger means every release is deliberate. We don't want
+#     surprise ships while teachers are mid-session.
+#   - migrations/runner.py runs idempotently inside classgen-app -- only
+#     new migrations apply. If a future migration is destructive
+#     (ALTER COLUMN, DROP), stage it as add-then-flip across two
+#     deploys instead of one. See the comment in migrations/runner.py.
+#   - SSE streams break on container restart. Frontend's tap-to-retry
+#     bubble handles the next prompt; in-flight generation is lost.
+#     Acceptable for alpha.
+#   - Health check is shallow (/health = {"status":"ok"}). The test job
+#     is the regression gate; the post-deploy poll only confirms the
+#     container is serving HTTP.
+#   - Rollback: tag the previous good commit and push it. The workflow
+#     re-deploys to that SHA. See .local/deploy.md.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Tag, branch, or SHA to deploy (default: master)'
+        required: false
+        default: 'master'
+
+concurrency:
+  # One deploy at a time. Do not cancel in-flight -- let it finish so
+  # the box never sits half-rebuilt.
+  group: deploy-class-dater-world
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: CI tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Tests
+        run: uv run pytest tests/ -v
+
+  deploy:
+    name: SSH deploy to 165.22.80.123
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://class.dater.world/
+    steps:
+      - name: Checkout (context only -- server does its own pull)
+        uses: actions/checkout@v4
+
+      - name: Install SSH key + known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Resolve deploy ref
+        id: ref
+        run: |
+          # On tag push, github.ref is "refs/tags/v4.2.0" -- strip prefix.
+          # On workflow_dispatch, use the input (default "master").
+          if [ -n "${{ github.event.inputs.ref }}" ]; then
+            echo "value=${{ github.event.inputs.ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy on server
+        env:
+          REF: ${{ steps.ref.outputs.value }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o StrictHostKeyChecking=yes \
+              root@165.22.80.123 \
+              "set -e && \
+               cd /var/opt/ns.classgen && \
+               git fetch origin --tags && \
+               git checkout ${REF} && \
+               docker compose --env-file deploy/.env.prod \
+                 -f deploy/docker-compose.nginx-proxy.yml up -d --build && \
+               docker exec classgen-app /app/.venv/bin/python -m migrations.runner && \
+               docker restart classgen-rest"
+
+      - name: Health check
+        id: health
+        run: |
+          # Poll the public health endpoint for up to ~2.5 min. Cold
+          # start (image rebuild + healthcheck + nginx-proxy refresh) is
+          # ~30-60s in practice; the loop gives headroom for an
+          # acme-companion cert renewal landing on the same deploy.
+          for i in $(seq 1 30); do
+            code=$(curl -sk -o /dev/null -w "%{http_code}" \
+                    https://class.dater.world/health || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "  health: 200"
+              exit 0
+            fi
+            echo "  attempt $i: $code"
+            sleep 5
+          done
+          echo "health check never returned 200" >&2
+          exit 1
+
+      - name: Dump app logs on health-check failure
+        if: failure() && steps.health.conclusion == 'failure'
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o StrictHostKeyChecking=yes \
+              root@165.22.80.123 \
+              "docker logs --tail 200 classgen-app 2>&1 || true; \
+               docker ps --filter name=classgen- \
+                 --format 'table {{.Names}}\t{{.Status}}'"
