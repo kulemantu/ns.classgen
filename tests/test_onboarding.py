@@ -22,11 +22,7 @@ def _served():
     js_match = re.search(r"/assets/app\.[a-f0-9]{8}\.js", html)
     assert css_match and js_match, "asset URLs missing from HTML"
     return (
-        html
-        + "\n"
-        + client.get(css_match.group()).text
-        + "\n"
-        + client.get(js_match.group()).text
+        html + "\n" + client.get(css_match.group()).text + "\n" + client.get(js_match.group()).text
     )
 
 
@@ -152,10 +148,7 @@ class TestIntroOverlay:
 
     def test_intro_cta_labels_match_slide_count(self):
         """Pin: ctaLabels array length matches slide count to prevent off-by-one drift."""
-        assert (
-            "['See How It Works', 'Next', 'Next', 'Accept & Start Teaching']"
-            in _served()
-        )
+        assert "['See How It Works', 'Next', 'Next', 'Accept & Start Teaching']" in _served()
 
     def test_intro_skip_button(self):
         response = client.get("/")
