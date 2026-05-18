@@ -33,7 +33,7 @@ Built for classrooms of 30-60 students with exercise books, pens, and a chalkboa
 | Payments | Paystack |
 | Frontend | Hand-written CSS, WhatsApp-inspired theme |
 | Deployment | Docker, Caddy (auto-HTTPS), uv |
-| CI | GitHub Actions (pytest + ruff) |
+| CI | GitHub Actions (pytest + ruff + AI code review) |
 
 ## Quick Start
 
@@ -155,6 +155,15 @@ uv run pyright                    # Type check
 ```
 
 CI runs pytest + ruff on push/PR to `main`/`master` via GitHub Actions. See [CONTRIBUTING.md](CONTRIBUTING.md) for PR guidelines.
+
+## AI Assistance
+
+Two GitHub Actions workflows integrate Claude Code into this repo:
+
+- **`@claude` mentions** — comment `@claude <instruction>` on any issue or PR to trigger an automated agent run (`.github/workflows/claude.yml`). Example: `@claude please add a docstring to the billing module`.
+- **Automatic PR review** — every opened or updated PR receives a first-pass review from Claude via `.github/workflows/claude-code-review.yml`.
+
+Auth uses the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (already configured).
 
 ## Deployment
 
