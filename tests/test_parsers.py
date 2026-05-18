@@ -241,9 +241,7 @@ class TestParseClarification:
     def test_clarification_with_code_fence(self):
         """Some models wrap JSON in ```json ... ``` fences. Strip them."""
         raw = (
-            "```json\n"
-            '{"clarification": "Which subject?", "suggestions": ["Math", "Biology"]}\n'
-            "```"
+            '```json\n{"clarification": "Which subject?", "suggestions": ["Math", "Biology"]}\n```'
         )
         result = parse_clarification(raw)
         assert result == ("Which subject?", ["Math", "Biology"])
@@ -259,10 +257,7 @@ class TestParseClarification:
         assert result == ("Anything else?", [])
 
     def test_clarification_strips_blank_suggestions(self):
-        raw = (
-            '{"clarification": "Pick one", '
-            '"suggestions": ["A", "  ", "", "B", null]}'
-        )
+        raw = '{"clarification": "Pick one", "suggestions": ["A", "  ", "", "B", null]}'
         result = parse_clarification(raw)
         assert result is not None
         _, suggestions = result
@@ -330,11 +325,7 @@ class TestNoMarkersRecovery:
         assert "Detective Cell" in pack.blocks[3].body
 
     def test_single_section_recovers_as_opener(self):
-        text = (
-            "Title: Solo Lesson\n"
-            "Summary: Just one section here\n"
-            "Details: A short detail line.\n"
-        )
+        text = "Title: Solo Lesson\nSummary: Just one section here\nDetails: A short detail line.\n"
         pack, _ = parse_lesson_response(text)
         assert pack is not None
         assert len(pack.blocks) == 1
@@ -345,10 +336,7 @@ class TestNoMarkersRecovery:
         """If the LLM emits 7 sections, only the first 5 are kept (matches
         the system prompt's block sequence)."""
         text = "\n\n".join(
-            [
-                f"Title: Section {i}\nSummary: s{i}\nDetails: d{i}\n"
-                for i in range(7)
-            ]
+            [f"Title: Section {i}\nSummary: s{i}\nDetails: d{i}\n" for i in range(7)]
         )
         pack, _ = parse_lesson_response(text)
         assert pack is not None
@@ -382,10 +370,7 @@ class TestNoMarkersRecovery:
 
     def test_section_with_missing_summary_still_recovers(self):
         """Title + Details only (Summary missing) — should still recover."""
-        text = (
-            "Title: First Block\n"
-            "Details: Only details here.\n"
-        )
+        text = "Title: First Block\nDetails: Only details here.\n"
         pack, _ = parse_lesson_response(text)
         assert pack is not None
         assert len(pack.blocks) == 1
@@ -468,6 +453,7 @@ class TestBlockSalvage:
 
     def _build_pack(self, blocks: list[dict]) -> str:
         import json as _json
+
         return _json.dumps(
             {
                 "version": "4.0",
@@ -516,6 +502,7 @@ class TestBlockSalvage:
     def test_all_blocks_invalid_returns_none(self):
         """No survivors → return None so caller falls through to other parsers."""
         import json as _json
+
         raw = _json.dumps({"blocks": [{"type": "bogus_a"}, {"type": "bogus_b"}]})
         pack = parse_lesson_json(raw)
         assert pack is None
@@ -523,6 +510,7 @@ class TestBlockSalvage:
     def test_meta_validation_failure_uses_default(self):
         """If meta is malformed but blocks are fine, salvage uses LessonMeta()."""
         import json as _json
+
         # duration_minutes as a non-integer string — fails LessonMeta validation
         raw = _json.dumps(
             {
@@ -572,4 +560,3 @@ class TestBlockSalvage:
         assert pack is not None
         assert len(pack.blocks) == 1
         assert pack.blocks[0].type == "opener"
-

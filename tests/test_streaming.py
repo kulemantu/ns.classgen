@@ -372,7 +372,6 @@ class TestStreamEndpoint:
             assert done["data"]["pdf_url"] == "/static/cached.pdf"
             assert done["data"]["homework_code"] == "CACHED7"
 
-
     @patch("classgen.api.chat.log_session")
     @patch("classgen.api.chat.get_session_history", return_value=[])
     def test_stream_emits_clarification_event(self, mock_hist, mock_log):

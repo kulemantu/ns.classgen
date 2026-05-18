@@ -104,9 +104,7 @@ class TestCallOpenrouterJson:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise APIConnectionError(
-                    request=httpx.Request("POST", "https://openrouter.ai/x")
-                )
+                raise APIConnectionError(request=httpx.Request("POST", "https://openrouter.ai/x"))
             return mock_completion
 
         with (

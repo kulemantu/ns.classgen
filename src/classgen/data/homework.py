@@ -28,6 +28,7 @@ def build_homework_url(base_url: str, code: str, teacher_phone: str = "") -> str
             return f"{base_url}/h/{slug}/{code}"
     return f"{base_url}/h/{code}"
 
+
 # --- In-memory fallback store ---
 
 _mem_homework: dict[str, dict] = {}

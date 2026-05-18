@@ -58,7 +58,9 @@ def test_root_references_hashed_assets():
     # Theme tokens (and the bulk of the rules) live in /assets/app.<hash>.css.
     assert ":root {" not in body
     inline_css = re.findall(r"<style[^>]*>(.*?)</style>", body, flags=re.DOTALL)
-    assert all(len(s) < 1024 for s in inline_css), "inline <style> blocks should be small (FOUT shield only)"
+    assert all(len(s) < 1024 for s in inline_css), (
+        "inline <style> blocks should be small (FOUT shield only)"
+    )
 
 
 def test_root_cache_headers():
@@ -424,8 +426,7 @@ def test_chat_clarification_rendered_as_suggestions(
     the web frontend already renders as quick-reply buttons. Otherwise the
     user sees raw JSON in the chat (the production bug we're fixing)."""
     mock_llm.return_value = (
-        '{"clarification": "What class level is this for?",'
-        ' "suggestions": ["JSS1", "JSS2", "SS1"]}'
+        '{"clarification": "What class level is this for?", "suggestions": ["JSS1", "JSS2", "SS1"]}'
     )
     with patch.dict(os.environ, {"FF_STRUCTURED_OUTPUT": "true"}, clear=True):
         response = client.post(

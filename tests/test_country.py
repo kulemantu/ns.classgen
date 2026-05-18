@@ -167,9 +167,7 @@ class TestCountriesListEndpoint:
 
     def test_every_supported_country_appears_exactly_once(self):
         response = client.get("/api/teacher/countries")
-        flat = [
-            c["name"] for g in response.json()["groups"] for c in g["countries"]
-        ]
+        flat = [c["name"] for g in response.json()["groups"] for c in g["countries"]]
         assert sorted(flat) == sorted(SUPPORTED_COUNTRIES)
         assert len(flat) == len(set(flat))  # no duplicates
 
@@ -181,9 +179,7 @@ class TestCountriesListEndpoint:
 
     def test_includes_key_markets(self):
         response = client.get("/api/teacher/countries")
-        flat = [
-            c["name"] for g in response.json()["groups"] for c in g["countries"]
-        ]
+        flat = [c["name"] for g in response.json()["groups"] for c in g["countries"]]
         for expected in ("Nigeria", "Kenya", "Ghana", "South Africa"):
             assert expected in flat
 
@@ -229,9 +225,7 @@ class TestCountriesDataModule:
         # All regions present in REGIONS that have at least one country appear.
         regions_returned = [g["region"] for g in groups]
         for region in REGIONS:
-            expected_countries = [
-                c for c, r in COUNTRY_REGIONS.items() if r == region
-            ]
+            expected_countries = [c for c, r in COUNTRY_REGIONS.items() if r == region]
             if expected_countries:
                 assert region in regions_returned
 
@@ -305,9 +299,7 @@ class TestWhatsAppOnboardingCountry:
     @patch("classgen.api.webhook.save_teacher")
     @patch("classgen.api.webhook.is_onboarded", return_value=False)
     @patch("classgen.api.webhook.get_teacher_by_phone", return_value=None)
-    def test_yes_saves_country_from_phone(
-        self, mock_teacher, mock_onboarded, mock_save, mock_mark
-    ):
+    def test_yes_saves_country_from_phone(self, mock_teacher, mock_onboarded, mock_save, mock_mark):
         response = client.post(
             "/webhook/twilio",
             data={"From": "whatsapp:+2348012345678", "Body": "YES"},
@@ -404,8 +396,8 @@ class TestChatPromptCountryInjection:
         assert mock_llm.called
         # First LLM call is the lesson generation. Args: (system_prompt, user_prompt)
         first_call = mock_llm.call_args_list[0]
-        user_prompt = first_call.args[1] if len(first_call.args) > 1 else first_call.kwargs.get(
-            "prompt", ""
+        user_prompt = (
+            first_call.args[1] if len(first_call.args) > 1 else first_call.kwargs.get("prompt", "")
         )
         assert "Nigeria" in user_prompt
         assert "Teacher's country: Nigeria" in user_prompt
@@ -454,7 +446,7 @@ class TestChatPromptCountryInjection:
         )
         assert response.status_code == 200
         first_call = mock_llm.call_args_list[0]
-        user_prompt = first_call.args[1] if len(first_call.args) > 1 else first_call.kwargs.get(
-            "prompt", ""
+        user_prompt = (
+            first_call.args[1] if len(first_call.args) > 1 else first_call.kwargs.get("prompt", "")
         )
         assert "Teacher's country:" not in user_prompt
