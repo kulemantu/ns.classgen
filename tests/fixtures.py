@@ -219,7 +219,10 @@ BROKEN_LESSON_MISSING_TITLE_DICT = {
             "analogy": "Xylem: one-way elevator up; Phloem: delivery truck down",
             "key_terms": [
                 {"term": "Xylem", "definition": "Tubes carrying water up from roots to leaves"},
-                {"term": "Phloem", "definition": "Tubes moving food (sugars) from leaves to other parts"},
+                {
+                    "term": "Phloem",
+                    "definition": "Tubes moving food (sugars) from leaves to other parts",
+                },
             ],
             "equation": None,
         },
@@ -260,7 +263,12 @@ BROKEN_LESSON_MISSING_TITLE_DICT = {
                 },
                 {
                     "question": "Transpiration is:",
-                    "options": ["A) Food movement", "B) Water evaporation from leaves", "C) Heart pumping", "D) Blood clotting"],
+                    "options": [
+                        "A) Food movement",
+                        "B) Water evaporation from leaves",
+                        "C) Heart pumping",
+                        "D) Blood clotting",
+                    ],
                     "correct": 1,
                     "explanation": "It pulls water up through xylem.",
                 },

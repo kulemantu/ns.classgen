@@ -134,7 +134,9 @@ async def call_openrouter_json(
             await asyncio.sleep(_RETRY_BACKOFF_S)
             try:
                 return await _create_chat_completion(
-                    system_prompt, user_message, model,
+                    system_prompt,
+                    user_message,
+                    model,
                     response_format={"type": "json_object"},
                 )
             except Exception as retry_exc:

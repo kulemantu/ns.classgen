@@ -29,11 +29,7 @@ def _served():
     js_match = re.search(r"/assets/app\.[a-f0-9]{8}\.js", html)
     assert css_match and js_match, "asset URLs missing from HTML"
     return (
-        html
-        + "\n"
-        + client.get(css_match.group()).text
-        + "\n"
-        + client.get(js_match.group()).text
+        html + "\n" + client.get(css_match.group()).text + "\n" + client.get(js_match.group()).text
     )
 
 

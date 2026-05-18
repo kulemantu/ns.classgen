@@ -131,9 +131,7 @@ class TestWebChatLessonGeneration:
     @patch("classgen.api.chat.log_session")
     @patch("classgen.api.chat.get_session_history", return_value=[])
     @patch("classgen.api.chat.stream_openrouter")
-    def test_chat_stream_emits_error_event_when_llm_empty(
-        self, mock_stream, _mock_hist, _mock_log
-    ):
+    def test_chat_stream_emits_error_event_when_llm_empty(self, mock_stream, _mock_hist, _mock_log):
         """When `stream_openrouter` yields nothing (upstream LLM unavailable),
         `/api/chat/stream` must emit an `event: error` SSE frame carrying the
         same `llm_unavailable` envelope as the blocking endpoint's 502 — so the

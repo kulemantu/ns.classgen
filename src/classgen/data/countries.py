@@ -41,9 +41,7 @@ def list_grouped() -> list[dict]:
     grouped: dict[str, list[dict]] = {region: [] for region in REGIONS}
     for row in rows:
         region = str(row["region"])
-        grouped.setdefault(region, []).append(
-            {"name": str(row["name"]), "flag": str(row["flag"])}
-        )
+        grouped.setdefault(region, []).append({"name": str(row["name"]), "flag": str(row["flag"])})
     return [{"region": r, "countries": grouped[r]} for r in REGIONS if grouped.get(r)]
 
 

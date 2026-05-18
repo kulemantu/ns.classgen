@@ -196,9 +196,7 @@ async def twilio_webhook(request: Request):
     if has_content and (len(ai_response_text) > 1500 or lesson_pack):
         if lesson_pack and flags.structured_output:
             wa_adapter = WhatsAppAdapter()
-            hw_url = (
-                build_homework_url(base_url, homework_code, phone) if homework_code else None
-            )
+            hw_url = build_homework_url(base_url, homework_code, phone) if homework_code else None
             reply_text = wa_adapter.render_lesson(
                 lesson_pack,
                 homework_code=homework_code,
